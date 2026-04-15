@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
     if (!device) return NextResponse.json({ message: 'Device tidak ditemukan' }, { status: 404 });
 
-    const targetJerigen = device.jerigens.find(j => j.id_jerigen === id_jerigen);
+    const targetJerigen = device.jerigens.find((j: any) => j.id_jerigen === id_jerigen);
 
     if (!targetJerigen) {
       return NextResponse.json({ message: 'Jerigen tidak ditemukan.' }, { status: 404 });
