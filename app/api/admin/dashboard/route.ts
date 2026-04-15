@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     if (action === 'ACCEPT_MITRA') {
       const { id_user, device_code } = body;
       
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: any) => {
         await tx.user.update({ where: { id_user }, data: { is_active: true } });
         // Update pending device code ke kode asli
         await tx.device.updateMany({
@@ -95,7 +95,7 @@ export async function DELETE(request: Request) {
     if (action === 'DELETE_USER') {
       // Prisma akan otomatis menghapus Point/Device jika menggunakan onCascade delete di skema, 
       // Jika tidak, kita hapus manual relasinya dulu (Untuk Mitra)
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: any) => {
         await tx.device.deleteMany({ where: { id_mitra: id } });
         await tx.point.deleteMany({ where: { id_nasabah: id } });
         await tx.user.delete({ where: { id_user: id } });

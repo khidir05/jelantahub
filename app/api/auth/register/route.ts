@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     // Nasabah, Admin, Pengepul langsung aktif. Mitra false.
     const isActive = role === 'mitra' ? false : true; 
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // 1. Buat User
       const newUser = await tx.user.create({
         data: { username, password: hashedPassword, name, no_telp: no_telp || null, role, is_active: isActive }

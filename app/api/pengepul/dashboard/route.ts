@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Transaksi untuk 1 Jerigen Spesifik
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // A. Catat ke tabel pickup_logs
       await tx.pickupLog.create({
         data: {
