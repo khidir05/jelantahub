@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '../../../../lib/prisma';
 
 // GET: Mengambil daftar mesin yang "online" & "disconnect", ATAU mesin yang sedang dipakai user ini
 export async function GET(request: Request) {
