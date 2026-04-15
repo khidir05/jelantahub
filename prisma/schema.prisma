@@ -1,0 +1,162 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  mitra
+  nasabah
+  admin
+  pengepul
+}
+
+enum DeviceStatus {
+  offline
+  online
+}
+
+enum DeviceProcess {
+  disconnect
+  standby
+  load
+}
+
+enum JerigenStatus {
+  empty
+  available
+  full
+}
+
+model User {
+  id_user    String   @id @default(uuid())
+  name       String
+  username   String   @unique
+  no_telp    String?
+  password   String
+  role       Role
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  points       Point?
+  devices      Device[]     @relation("MitraDevices")
+  pickup_logs  PickupLog[]  @relation("PengepulLogs")
+  oil_deposits OilDeposit[] @relation("NasabahDeposits")
+
+  @@map("users")
+}
+
+model Point {
+  id_nasabah String   @id
+  balance    Float    @default(0)
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [id_nasabah], references: [id_user], onDelete: Cascade)
+
+  @@map("points")
+}
+
+model Device {
+  id_device     String        @id @default(uuid())
+  device_code   String        @unique
+  location_name String
+  address       String?
+  status        DeviceStatus  
+  process       DeviceProcess @default(disconnect)
+  id_mitra      String
+  id_nasabah    String?
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+
+  mitra        User         @relation("MitraDevices", fields: [id_mitra], references: [id_user])
+  jerigens     Jerigen[]
+  pickup_logs  PickupLog[]
+  oil_deposits OilDeposit[]
+
+  @@map("devices")
+}
+
+model SensorRead {
+  id_read   String  @id @default(uuid())
+  volume    Float
+  quality   Float
+  jerigen_a Float?
+  jerigen_b Float?
+
+  oil_deposits OilDeposit[]
+
+  @@map("sensor_reads")
+}
+
+model Jerigen {
+  id_jerigen        String        @id @default(uuid())
+  jerigen_code      String        @unique
+  id_device         String
+  max_capacity      Float
+  current_volume    Float         @default(0)
+  status            JerigenStatus @default(empty)
+  last_collected_at DateTime?
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  device      Device      @relation(fields: [id_device], references: [id_device])
+  pickup_logs PickupLog[]
+
+  @@map("jerigens")
+}
+
+model PickupLog {
+  id_pickup     String   @id @default(uuid())
+  jerigen_code  String
+  id_device     String
+  id_pengepul   String
+  volume_before Float
+  volume_taken  Float
+  created_at    DateTime @default(now())
+
+  jerigen  Jerigen @relation(fields: [jerigen_code], references: [jerigen_code])
+  device   Device  @relation(fields: [id_device], references: [id_device])
+  pengepul User    @relation("PengepulLogs", fields: [id_pengepul], references: [id_user])
+
+  @@map("pickup_logs")
+}
+
+model OilDeposit {
+  id_deposit    String   @id @default(uuid())
+  id_read       String?
+  id_device     String
+  id_nasabah    String
+  volume        Float
+  quality_score Float
+  point_earned  Float
+  created_at    DateTime @default(now())
+
+  sensor_read SensorRead? @relation(fields: [id_read], references: [id_read])
+  device      Device      @relation(fields: [id_device], references: [id_device])
+  nasabah     User        @relation("NasabahDeposits", fields: [id_nasabah], references: [id_user])
+
+  @@map("oil_deposits")
+}
+
+model RegistrationLink {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique @default(uuid())
+  role       String
+  is_used    Boolean  @default(false)
+  expires_at DateTime
+  created_at DateTime @default(now())
+}
+
+model PointRule {
+  id_rule         Int       @id @default(autoincrement())
+  min_quality     Float
+  max_quality     Float
+  point_per_liter Float
+  multiplier      Float     @default(1.0)
+  valid_from      DateTime  @default(now())
+  valid_until     DateTime?
+  is_active       Boolean   @default(true)
+}
