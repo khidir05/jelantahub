@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { Wallet, History, Server, Loader2, CheckCircle2, XCircle, MapPin, Zap, ArrowRight, RefreshCcw } from 'lucide-react';
+import { Wallet, History, Server, Loader2, CheckCircle2, XCircle, MapPin, Zap, ArrowRight, RefreshCcw, Droplets } from 'lucide-react';
 import api from '../../lib/axios';
 
 const fetcher = (url: string, userId: string) => api.get(url, { headers: { 'x-user-id': userId } }).then(res => res.data);
@@ -20,6 +20,10 @@ export default function NasabahDashboard() {
   const [activeDevice, setActiveDevice] = useState<any | null>(null);
   const [uiState, setUiState] = useState('IDLE');
   const [isRefreshing, setIsRefreshing] = useState(false); // Untuk animasi tombol refresh
+
+  const [mqttPayload, setMqttPayload] = useState<any>(null);
+  const [mqttConnected, setMqttConnected] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user_id');
@@ -51,36 +55,102 @@ export default function NasabahDashboard() {
         
         // State Machine Update
         if (devicesData.activeDevice.process === 'standby') {
-          if (uiState === 'LOADING') {
-             // Berubah dari loading menjadi standby berarti sukses (sensor mendeteksi proses selesai)
-             setUiState('SUCCESS');
-             mutateTabungan(); // Segera tarik tabungan terbaru
-          } else if (uiState !== 'SUCCESS') {
+          if (uiState !== 'LOADING' && uiState !== 'SUCCESS') {
              setUiState('STANDBY');
           }
         } else if (devicesData.activeDevice.process === 'load') {
-          setUiState('LOADING');
+          if (uiState !== 'SUCCESS') {
+             setUiState('LOADING');
+          }
         }
       } else {
         setActiveDevice(null);
         setAvailableDevices(devicesData.availableDevices);
-        if (uiState !== 'IDLE') setUiState('IDLE');
+        if (uiState !== 'IDLE' && uiState !== 'SUCCESS') setUiState('IDLE');
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devicesData]); // Sengaja uiState tidak di-listen agar tidak infinite loop
+  }, [devicesData]);
+
+  // Polling nilai sensor dari API server-side MQTT.
+  useEffect(() => {
+    if (uiState !== 'LOADING' || !activeDevice) return;
+
+    let isMounted = true;
+    let intervalId: ReturnType<typeof setInterval>;
+
+    const readMqttValue = async () => {
+      try {
+        const response = await api.get('/iot/live-value');
+        if (!isMounted) return;
+
+        setMqttConnected(Boolean(response.data?.connected));
+        if (response.data?.payload) {
+          setMqttPayload(response.data.payload);
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        setMqttConnected(false);
+      }
+    };
+
+    readMqttValue();
+    intervalId = setInterval(readMqttValue, 1500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [uiState, activeDevice]);
+
+  const handleSelesaiTuang = async () => {
+    if (!activeDevice) return;
+    
+    // Jika tidak ada payload sama sekali (misal sensor belum publish apa-apa)
+    const finalPayload = {
+      id_device: activeDevice.id_device,
+      volume_disetor: Number(mqttPayload?.volume_disetor ?? 0),
+      skor_kualitas: Number(mqttPayload?.skor_kualitas ?? 0),
+      volume_jerigen_a: Number(mqttPayload?.volume_jerigen_a ?? 0),
+      volume_jerigen_b: Number(mqttPayload?.volume_jerigen_b ?? 0),
+      sensor_status: Boolean(mqttPayload?.sensor_status ?? false),
+      timestamp: mqttPayload?.timestamp || new Date().toISOString(),
+    };
+
+    setIsFinishing(true);
+    try {
+      const response = await api.post('/iot/simpan-transaksi', finalPayload);
+      if (response.data.success) {
+        setUiState('SUCCESS');
+        mutateTabungan();
+        mutateDevices();
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Gagal memproses transaksi. Silakan coba lagi.");
+    } finally {
+      setIsFinishing(false);
+    }
+  };
 
   const handleDeviceAction = async (action: string, deviceId: string) => {
     try {
       await api.post('/nasabah/device', { action, id_device: deviceId, id_nasabah: userId });
       if (action === 'FINISH') {
         setUiState('IDLE');
+        setMqttPayload(null);
+        setMqttConnected(false);
         mutateDevices();
       } else if (action === 'SELECT' || action === 'CANCEL') {
         setUiState('STANDBY');
+        if (action === 'CANCEL') {
+          setMqttPayload(null);
+          setMqttConnected(false);
+        }
         mutateDevices();
       } else if (action === 'SETOR') {
         setUiState('LOADING');
+        setMqttPayload(null);
       }
     } catch (error) {
       alert("Gagal memproses permintaan.");
@@ -208,18 +278,48 @@ export default function NasabahDashboard() {
                 <div className="relative w-24 h-24 mx-auto mb-6">
                   <div className="absolute inset-0 bg-orange-100 rounded-full animate-ping opacity-50"></div>
                   <div className="absolute inset-0 bg-white rounded-full flex items-center justify-center shadow-lg z-10">
-                    <Loader2 className="w-10 h-10 text-orange-500 animate-spin" />
+                    <Droplets className="w-10 h-10 text-orange-500 animate-pulse" />
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">Sedang Memproses</h2>
-                <p className="text-slate-500 text-sm mb-8 px-2">Sistem sedang menimbang volume dan menganalisis kualitas minyak Anda. Mohon tunggu.</p>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">Silakan Tuang Minyak</h2>
+                <p className="text-slate-500 text-sm mb-6 px-2">Data volume dari mesin akan muncul secara real-time di bawah ini.</p>
                 
-                <button 
-                  onClick={() => handleDeviceAction('CANCEL', activeDevice.id_device)}
-                  className="bg-red-50 text-red-600 border border-red-100 py-3 px-6 rounded-xl font-bold hover:bg-red-100 flex items-center gap-2 mx-auto transition-colors active:scale-95"
-                >
-                  <XCircle className="w-5 h-5" /> Batalkan Proses
-                </button>
+                <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 mb-8 flex flex-col items-center">
+                   <p className="text-sm text-slate-500 font-semibold uppercase tracking-widest mb-2">Volume Terbaca</p>
+                   <div className="flex items-baseline gap-2">
+                     <span className="text-5xl font-extrabold text-slate-800">
+                        {mqttPayload ? Number(mqttPayload.volume_disetor || 0).toFixed(2) : "0.00"}
+                     </span>
+                     <span className="text-xl font-bold text-orange-500">Liter</span>
+                   </div>
+                   {mqttPayload && (
+                      <div className="mt-3 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4" /> Sensor Aktif
+                      </div>
+                   )}
+                   {!mqttPayload && (
+                      <p className="mt-3 text-xs text-slate-500">
+                        {mqttConnected ? 'Menunggu data dari sensor...' : 'Menghubungkan ke MQTT...'}
+                      </p>
+                   )}
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={handleSelesaiTuang}
+                    disabled={isFinishing}
+                    className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-2xl font-extrabold text-lg hover:from-orange-600 hover:to-orange-700 shadow-xl shadow-orange-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+                  >
+                    {isFinishing ? <Loader2 className="w-6 h-6 animate-spin" /> : "Selesai Tuang"}
+                  </button>
+                  <button 
+                    onClick={() => handleDeviceAction('CANCEL', activeDevice.id_device)}
+                    disabled={isFinishing}
+                    className="w-full bg-white border-2 border-red-100 text-red-500 py-3 rounded-2xl font-bold hover:bg-red-50 transition-all active:scale-[0.98] disabled:opacity-50"
+                  >
+                    Batalkan Proses
+                  </button>
+                </div>
               </div>
             )}
 
