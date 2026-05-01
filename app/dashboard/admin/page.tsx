@@ -1,37 +1,45 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import useSWR from 'swr';
-import { Users, Link as LinkIcon, Settings, CheckCircle2, XCircle, Copy, Plus, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Users, Link as LinkIcon, Settings, CheckCircle2, XCircle, Copy, Plus, AlertTriangle, ShieldCheck, TrendingUp } from 'lucide-react';
 import api from '../../lib/axios';
-
-const fetcher = (url: string) => api.get(url).then(res => res.data);
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'USERS' | 'LINKS' | 'RULES'>('USERS');
   const [users, setUsers] = useState<any[]>([]);
   const [links, setLinks] = useState<any[]>([]);
-  const [rules, setRules] = useState<any[]>([]);
   
   // State Modal Accept Mitra
   const [acceptModal, setAcceptModal] = useState<{isOpen: boolean, id_user: string, name: string}>({isOpen: false, id_user: '', name: ''});
   const [deviceCodeInput, setDeviceCodeInput] = useState('');
 
-  const { data: resUsers, mutate: mutateUsers } = useSWR('/admin/dashboard?action=GET_USERS', fetcher, { refreshInterval: 5000 });
-  const { data: resLinks, mutate: mutateLinks } = useSWR('/admin/dashboard?action=GET_LINKS', fetcher, { refreshInterval: 5000 });
-  const { data: resRules, mutate: mutateRules } = useSWR('/admin/dashboard?action=GET_RULES', fetcher, { refreshInterval: 5000 });
+  // State untuk Konfigurasi Poin 2-Grade
+  const [gradeConfig, setGradeConfig] = useState({ threshold: 80, pointA: 50, pointB: 10 });
 
-  useEffect(() => {
-    if (resUsers) setUsers(resUsers);
-    if (resLinks) setLinks(resLinks);
-    if (resRules) setRules(resRules);
-  }, [resUsers, resLinks, resRules]);
+  const fetchData = async () => {
+    try {
+      const [resUsers, resLinks, resRules] = await Promise.all([
+        api.get('/admin/dashboard?action=GET_USERS'),
+        api.get('/admin/dashboard?action=GET_LINKS'),
+        api.get('/admin/dashboard?action=GET_RULES')
+      ]);
+      setUsers(resUsers.data);
+      setLinks(resLinks.data);
 
-  const fetchData = () => {
-    mutateUsers();
-    mutateLinks();
-    mutateRules();
+      // Pastikan ada 2 data (Grade B di index 0, Grade A di index 1 karena diurutkan asc)
+      if (resRules.data && resRules.data.length === 2) {
+        setGradeConfig({
+          threshold: resRules.data[1].min_quality,
+          pointA: resRules.data[1].point_per_liter,
+          pointB: resRules.data[0].point_per_liter
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
+
+  useEffect(() => { fetchData(); }, []);
 
   // === ACTIONS ===
   const handleAcceptMitra = async (e: React.FormEvent) => {
@@ -67,20 +75,16 @@ export default function AdminDashboard() {
     } catch (err) { alert('Gagal membuat link'); }
   };
 
-  const handleCreateRule = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveGrades = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
     try {
       await api.post('/admin/dashboard', {
-        action: 'CREATE_RULE',
-        min_quality: formData.get('min'),
-        max_quality: formData.get('max'),
-        point_per_liter: formData.get('point'),
-        multiplier: formData.get('multiplier')
+        action: 'SAVE_POINT_CONFIG',
+        ...gradeConfig
       });
-      e.currentTarget.reset();
+      alert('Konfigurasi Harga Poin berhasil diperbarui dan mulai berlaku sekarang!');
       fetchData();
-    } catch (err) { alert('Gagal membuat aturan poin'); }
+    } catch (err) { alert('Gagal menyimpan konfigurasi'); }
   };
 
   const copyToClipboard = (text: string) => {
@@ -96,17 +100,17 @@ export default function AdminDashboard() {
       </div>
 
       {/* TABS */}
-      <div className="flex gap-2 p-1 bg-slate-200/50 rounded-xl w-fit border border-slate-200 overflow-x-auto">
-        <button onClick={() => setActiveTab('USERS')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'USERS' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}><Users className="w-4 h-4" /> Manajemen User</button>
-        <button onClick={() => setActiveTab('LINKS')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'LINKS' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}><LinkIcon className="w-4 h-4" /> Token Registrasi</button>
-        <button onClick={() => setActiveTab('RULES')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'RULES' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}><Settings className="w-4 h-4" /> Aturan Poin</button>
+      <div className="flex gap-2 p-1 bg-slate-200/50 rounded-xl w-full sm:w-fit max-w-full overflow-x-auto border border-slate-200">
+        <button onClick={() => setActiveTab('USERS')} className={`shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'USERS' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}><Users className="w-4 h-4" /> Manajemen User</button>
+        <button onClick={() => setActiveTab('LINKS')} className={`shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'LINKS' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}><LinkIcon className="w-4 h-4" /> Token Registrasi</button>
+        <button onClick={() => setActiveTab('RULES')} className={`shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'RULES' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}><Settings className="w-4 h-4" /> Konversi Harga</button>
       </div>
 
       {/* TAB 1: USERS */}
       {activeTab === 'USERS' && (
         <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-200">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto pb-2">
+            <table className="w-full min-w-[700px] text-left border-collapse">
               <thead>
                 <tr className="border-b-2 border-slate-100 text-slate-400 text-sm">
                   <th className="pb-3 font-bold">Nama & Role</th>
@@ -157,8 +161,6 @@ export default function AdminDashboard() {
                 <select name="role" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none">
                   <option value="admin">Admin</option>
                   <option value="pengepul">Pengepul</option>
-                  <option value="nasabah">Nasabah (Jalur Khusus)</option>
-                  <option value="mitra">Mitra (Jalur Khusus)</option>
                 </select>
               </div>
               <div>
@@ -197,61 +199,102 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* TAB 3: POINT RULES */}
+      {/* TAB 3: POINT RULES (KONVERSI HARGA/POIN) */}
       {activeTab === 'RULES' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-200 h-fit">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Settings className="w-5 h-5 text-orange-500" /> Tambah Aturan Poin</h3>
-            <form onSubmit={handleCreateRule} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Min. Kualitas</label>
-                  <input type="number" name="min" step="0.1" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none" required />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Max. Kualitas</label>
-                  <input type="number" name="max" step="0.1" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none" required />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Poin per Liter</label>
-                <input type="number" name="point" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-orange-600 outline-none" required />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Multiplier (Bonus)</label>
-                <input type="number" name="multiplier" defaultValue="1.0" step="0.1" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
-              </div>
-              <button type="submit" className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900">Simpan Aturan</button>
-            </form>
+        <div className="max-w-5xl">
+          <div className="mb-6 flex items-center justify-between bg-blue-50 border border-blue-100 p-4 rounded-2xl">
+            <p className="text-blue-800 font-medium text-sm flex items-center gap-2">
+              <span className="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold">i</span>
+              Atur nilai tukar poin dari nasabah berdasarkan persentase kualitasnya.
+            </p>
           </div>
 
-          <div className="lg:col-span-2 bg-white rounded-[2rem] p-8 shadow-sm border border-slate-200">
-            <h3 className="font-bold text-slate-800 mb-4">Tabel Konfigurasi Poin Aktif</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-slate-100 text-slate-400 text-sm">
-                    <th className="pb-3 font-bold">Rentang Kualitas (Skor)</th>
-                    <th className="pb-3 font-bold">Poin Dasar (/L)</th>
-                    <th className="pb-3 font-bold">Multiplier</th>
-                    <th className="pb-3 font-bold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rules.map(rule => (
-                    <tr key={rule.id_rule} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="py-4 font-bold text-slate-700">{rule.min_quality} - {rule.max_quality}</td>
-                      <td className="py-4 font-extrabold text-orange-500">{rule.point_per_liter} PTS</td>
-                      <td className="py-4 font-mono text-slate-500">x{rule.multiplier}</td>
-                      <td className="py-4">
-                        {rule.is_active ? <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Aktif</span> : <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded text-xs font-bold">Inaktif</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <form onSubmit={handleSaveGrades} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            {/* KARTU GRADE A (Premium) */}
+            <div className="bg-white rounded-[2rem] border-2 border-green-100 shadow-sm overflow-hidden relative transition-all hover:shadow-md">
+              <div className="absolute top-4 right-4 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                Kualitas Premium
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="bg-green-100 p-2.5 rounded-xl"><TrendingUp className="w-6 h-6 text-green-600" /></div>
+                  <h3 className="text-2xl font-extrabold text-slate-800">Grade A</h3>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 mb-2">Batas Minimal Kualitas (%)</label>
+                  <div className="relative">
+                    <input 
+                      type="number" 
+                      value={gradeConfig.threshold}
+                      onChange={(e) => setGradeConfig({...gradeConfig, threshold: parseFloat(e.target.value) || 0})}
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-extrabold text-xl text-slate-800 focus:ring-2 focus:ring-green-500 outline-none pr-12" 
+                      required min="1" max="100"
+                    />
+                    <span className="absolute right-4 top-4 text-slate-400 font-bold text-xl">%</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2 font-medium">Minyak dengan kualitas di atas angka ini akan masuk ke Grade A.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 mb-2">Poin Dasar per Liter</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-4 text-slate-400 font-bold text-xl">PTS</span>
+                    <input 
+                      type="number" 
+                      value={gradeConfig.pointA}
+                      onChange={(e) => setGradeConfig({...gradeConfig, pointA: parseFloat(e.target.value) || 0})}
+                      className="w-full p-4 pl-16 bg-slate-50 border border-slate-200 rounded-xl font-extrabold text-xl text-green-600 focus:ring-2 focus:ring-green-500 outline-none" 
+                      required min="1"
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full py-4 mt-2 bg-green-500 text-white rounded-xl font-bold text-lg hover:bg-green-600 flex justify-center items-center gap-2 shadow-lg shadow-green-500/20 active:scale-95 transition-all">
+                  <CheckCircle2 className="w-5 h-5" /> Simpan Konfigurasi Grade A
+                </button>
+              </div>
             </div>
-          </div>
+
+            {/* KARTU GRADE B (Standar) */}
+            <div className="bg-white rounded-[2rem] border-2 border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+              <div className="p-8 space-y-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="bg-orange-100 p-2.5 rounded-xl"><AlertTriangle className="w-6 h-6 text-orange-600" /></div>
+                  <h3 className="text-2xl font-extrabold text-slate-800">Grade B</h3>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 mb-2">Batas Kualitas (%)</label>
+                  <div className="w-full p-4 bg-slate-100 border border-slate-200 rounded-xl font-bold text-lg text-slate-500 flex justify-between items-center cursor-not-allowed">
+                    <span>Di bawah Grade A</span>
+                    <span>&lt; {gradeConfig.threshold}%</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2 font-medium">Otomatis dihitung untuk minyak yang tidak memenuhi syarat Grade A.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 mb-2">Poin Dasar per Liter</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-4 text-slate-400 font-bold text-xl">PTS</span>
+                    <input 
+                      type="number" 
+                      value={gradeConfig.pointB}
+                      onChange={(e) => setGradeConfig({...gradeConfig, pointB: parseFloat(e.target.value) || 0})}
+                      className="w-full p-4 pl-16 bg-slate-50 border border-slate-200 rounded-xl font-extrabold text-xl text-orange-600 focus:ring-2 focus:ring-orange-500 outline-none" 
+                      required min="1"
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full py-4 mt-2 bg-slate-800 text-white rounded-xl font-bold text-lg hover:bg-slate-900 flex justify-center items-center gap-2 shadow-lg shadow-slate-800/20 active:scale-95 transition-all">
+                  <Settings className="w-5 h-5" /> Simpan Konfigurasi Grade B
+                </button>
+              </div>
+            </div>
+
+          </form>
         </div>
       )}
 
@@ -277,7 +320,7 @@ export default function AdminDashboard() {
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-lg focus:ring-2 focus:ring-orange-500 outline-none uppercase" 
                   required autoFocus
                 />
-                <p className="text-xs text-slate-500 mt-2">Kode ini akan menggantikan status PENDING dan menghubungkan mitra dengan mesin IoT di lapangan.</p>
+                <p className="text-xs text-slate-500 mt-2">Kode ini akan menghubungkan mitra dengan mesin IoT di lapangan.</p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setAcceptModal({isOpen: false, id_user: '', name: ''})} className="w-1/2 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200">Batal</button>

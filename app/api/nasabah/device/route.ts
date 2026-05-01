@@ -19,6 +19,19 @@ export async function GET(request: Request) {
     
     // 2. Fetch Dashboard Devices Data
     if (idNasabah) {
+      // AUTO-RELEASE ZOMBIE LOCK (10 minutes)
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      await prisma.device.updateMany({
+        where: {
+          process: { in: ['standby', 'load'] }, // Include load just in case
+          updated_at: { lt: tenMinutesAgo }
+        },
+        data: {
+          process: 'disconnect',
+          id_nasabah: null
+        }
+      });
+
       const activeDevice = await prisma.device.findFirst({
         where: { id_nasabah: idNasabah }
       });
@@ -48,10 +61,13 @@ export async function POST(request: Request) {
     if (!id_device) return NextResponse.json({ message: 'ID Device required' }, { status: 400 });
 
     if (action === 'SELECT') {
-      await prisma.device.update({
-        where: { id_device },
+      const result = await prisma.device.updateMany({
+        where: { id_device, process: 'disconnect' },
         data: { id_nasabah, process: 'standby' }
       });
+      if (result.count === 0) {
+         return NextResponse.json({ message: 'Mesin sedang digunakan atau tidak tersedia.' }, { status: 409 });
+      }
     } else if (action === 'CANCEL') {
       await prisma.device.update({
         where: { id_device },

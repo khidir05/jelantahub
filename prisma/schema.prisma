@@ -155,8 +155,5 @@ model PointRule {
   min_quality     Float
   max_quality     Float
   point_per_liter Float
-  multiplier      Float     @default(1.0)
-  valid_from      DateTime  @default(now())
-  valid_until     DateTime?
   is_active       Boolean   @default(true)
 }

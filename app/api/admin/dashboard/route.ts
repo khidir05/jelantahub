@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
+import { prisma } from '../../../lib/prisma'; // Sesuaikan jalur titik-titiknya
 import { v4 as uuidv4 } from 'uuid';
 
 export async function GET(request: Request) {
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   try {
     if (action === 'GET_USERS') {
       const users = await prisma.user.findMany({
-        include: { devices: true }, // Untuk melihat data device mitra
+        include: { devices: true }, 
         orderBy: { created_at: 'desc' }
       });
       return NextResponse.json(users);
@@ -54,7 +54,6 @@ export async function POST(request: Request) {
       
       await prisma.$transaction(async (tx: any) => {
         await tx.user.update({ where: { id_user }, data: { is_active: true } });
-        // Update pending device code ke kode asli
         await tx.device.updateMany({
           where: { id_mitra: id_user },
           data: { device_code: device_code }
@@ -63,18 +62,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Mitra disetujui & Device Code tersimpan.' });
     }
 
-    // 3. CREATE POINT RULE
-    if (action === 'CREATE_RULE') {
-      const { min_quality, max_quality, point_per_liter, multiplier } = body;
-      await prisma.pointRule.create({
-        data: {
-          min_quality: parseFloat(min_quality),
-          max_quality: parseFloat(max_quality),
-          point_per_liter: parseFloat(point_per_liter),
-          multiplier: parseFloat(multiplier) || 1.0,
-        }
+    // 3. SAVE POINT CONFIG (STRATEGI: HAPUS SEMUA & BUAT 2 BARU)
+    if (action === 'SAVE_POINT_CONFIG') {
+      const { threshold, pointA, pointB } = body;
+      
+      await prisma.$transaction(async (tx: any) => {
+        // A. Bersihkan tabel (Hapus semua data aturan yang ada)
+        await tx.pointRule.deleteMany({});
+
+        // B. Buat Aturan Grade B (Standar) -> Kualitas 0 sampai < Threshold
+        await tx.pointRule.create({
+          data: {
+            min_quality: 0,
+            max_quality: parseFloat(threshold) - 0.1,
+            point_per_liter: parseFloat(pointB),
+            is_active: true
+          }
+        });
+
+        // C. Buat Aturan Grade A (Premium) -> Kualitas Threshold sampai 100
+        await tx.pointRule.create({
+          data: {
+            min_quality: parseFloat(threshold),
+            max_quality: 100,
+            point_per_liter: parseFloat(pointA),
+            is_active: true
+          }
+        });
       });
-      return NextResponse.json({ message: 'Aturan Poin dibuat.' });
+
+      return NextResponse.json({ message: 'Konfigurasi Poin berhasil disimpan.' });
     }
 
     return NextResponse.json({ message: 'Action invalid' }, { status: 400 });
@@ -91,10 +108,7 @@ export async function DELETE(request: Request) {
 
     if (!id) return NextResponse.json({ message: 'ID diperlukan' }, { status: 400 });
 
-    // REJECT / DELETE USER
     if (action === 'DELETE_USER') {
-      // Prisma akan otomatis menghapus Point/Device jika menggunakan onCascade delete di skema, 
-      // Jika tidak, kita hapus manual relasinya dulu (Untuk Mitra)
       await prisma.$transaction(async (tx: any) => {
         await tx.device.deleteMany({ where: { id_mitra: id } });
         await tx.point.deleteMany({ where: { id_nasabah: id } });
