@@ -87,3 +87,23 @@ export async function GET() {
     payload: latestPayload,
   });
 }
+
+export async function POST(request: Request) {
+  try {
+    ensureMqttConnection();
+    const body = await request.json();
+    
+    if (body.action === 'PUBLISH_QUALITY') {
+      const qualityTopic = MQTT_TOPIC.replace('/value', '/quality');
+      if (client && isConnected) {
+        client.publish(qualityTopic, JSON.stringify({ quality: 'CHEK' }));
+        return NextResponse.json({ success: true, message: `Published to ${qualityTopic}` });
+      } else {
+        return NextResponse.json({ success: false, message: 'MQTT not connected' }, { status: 500 });
+      }
+    }
+    return NextResponse.json({ success: false, message: 'Invalid action' }, { status: 400 });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+  }
+}

@@ -119,7 +119,12 @@ export default function NasabahDashboard() {
 
     setIsFinishing(true);
     try {
+      // 1. Simpan Transaksi ke Database
       const response = await api.post('/iot/simpan-transaksi', finalPayload);
+      
+      // 2. Publish MQTT ke topic /quality
+      await api.post('/iot/live-value', { action: 'PUBLISH_QUALITY' });
+
       if (response.data.success) {
         setUiState('SUCCESS');
         mutateTabungan();
@@ -154,6 +159,18 @@ export default function NasabahDashboard() {
       }
     } catch (error) {
       alert("Gagal memproses permintaan.");
+    }
+  };
+
+  const handleStartSetor = async (deviceId: string) => {
+    try {
+      await api.post('/nasabah/device', { action: 'SELECT', id_device: deviceId, id_nasabah: userId });
+      await api.post('/nasabah/device', { action: 'SETOR', id_device: deviceId, id_nasabah: userId });
+      setUiState('LOADING');
+      setMqttPayload(null);
+      mutateDevices();
+    } catch (error) {
+      alert("Gagal memulai setoran. Mesin mungkin sedang digunakan.");
     }
   };
 
@@ -205,10 +222,9 @@ export default function NasabahDashboard() {
               )}
             </div>
 
-            {/* STATE 1: IDLE (Pilih Mesin) */}
+            {/* STATE 1: IDLE (Tidak Ada Mesin Terpilih) */}
             {uiState === 'IDLE' && (
               <div className="space-y-4">
-                <p className="text-sm font-medium text-slate-500 mb-2">Pilih lokasi mesin terdekat:</p>
                 {availableDevices.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 px-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                     <Server className="w-10 h-10 text-slate-300 mb-3" />
@@ -216,31 +232,21 @@ export default function NasabahDashboard() {
                     <p className="text-xs text-slate-400 mt-1">Tunggu beberapa saat atau refresh halaman.</p>
                   </div>
                 ) : (
-                  <div className="grid gap-3">
-                    {availableDevices.map(dev => (
+                  <div className="text-center py-4">
+                    <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 px-4 py-1.5 rounded-full text-xs font-bold mb-6">
+                      <Zap className="w-4 h-4 fill-orange-500" /> Terhubung: {availableDevices[0].location_name}
+                    </div>
+                    <h2 className="text-2xl font-extrabold text-slate-800 mb-2">Mesin Siap!</h2>
+                    <p className="text-slate-500 text-sm mb-8 px-4">Klik tombol di bawah untuk membuka katup, lalu tuangkan minyak Anda secara perlahan.</p>
+                    
+                    <div className="flex flex-col gap-3">
                       <button 
-                        key={dev.id_device} 
-                        onClick={() => handleDeviceAction('SELECT', dev.id_device)}
-                        className="group flex items-center justify-between p-4 bg-white border-2 border-slate-100 hover:border-orange-500 rounded-2xl transition-all hover:shadow-md text-left w-full active:scale-[0.98]"
+                        onClick={() => handleStartSetor(availableDevices[0].id_device)}
+                        className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-2xl font-extrabold text-lg hover:from-orange-600 hover:to-orange-700 shadow-xl shadow-orange-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                       >
-                        <div className="flex items-start gap-4">
-                          <div className="bg-slate-50 group-hover:bg-orange-50 p-3 rounded-full transition-colors">
-                            <MapPin className="text-slate-400 group-hover:text-orange-500 w-5 h-5" />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-slate-700 group-hover:text-orange-600 transition-colors">{dev.location_name}</h4>
-                            <div className="flex items-center gap-1 mt-1">
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                              </span>
-                              <p className="text-xs text-slate-500 font-medium">Online & Kosong</p>
-                            </div>
-                          </div>
-                        </div>
-                        <ArrowRight className="text-slate-300 group-hover:text-orange-500 w-5 h-5 transform group-hover:translate-x-1 transition-all" />
+                        Mulai Setor Minyak
                       </button>
-                    ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -286,11 +292,19 @@ export default function NasabahDashboard() {
                 
                 <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 mb-8 flex flex-col items-center">
                    <p className="text-sm text-slate-500 font-semibold uppercase tracking-widest mb-2">Volume Terbaca</p>
-                   <div className="flex items-baseline gap-2">
-                     <span className="text-5xl font-extrabold text-slate-800">
-                        {mqttPayload ? Number(mqttPayload.volume_disetor || 0).toFixed(2) : "0.00"}
-                     </span>
-                     <span className="text-xl font-bold text-orange-500">Liter</span>
+                   <div className="flex flex-col items-center gap-4 w-full">
+                     <div className="flex items-baseline gap-2">
+                       <span className="text-5xl font-extrabold text-slate-800">
+                          {mqttPayload ? Number(mqttPayload.volume_disetor || 0).toFixed(2) : "0.00"}
+                       </span>
+                       <span className="text-xl font-bold text-orange-500">Liter</span>
+                     </div>
+                     <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl flex items-center justify-between w-full max-w-[200px]">
+                       <span className="text-xs font-bold text-slate-500">Skor Kualitas</span>
+                       <span className="text-lg font-extrabold text-slate-800">
+                         {mqttPayload ? Number(mqttPayload.skor_kualitas || 0).toFixed(0) : "0"}%
+                       </span>
+                     </div>
                    </div>
                    {mqttPayload && (
                       <div className="mt-3 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
