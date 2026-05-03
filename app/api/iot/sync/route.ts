@@ -19,19 +19,18 @@ export async function POST(request: Request) {
 
     // 2. Ambil Konfigurasi Harga Poin (Grade A dan Grade B)
     const rules = await prisma.pointRule.findMany({
-      where: { is_active: true },
-      orderBy: { min_quality: 'asc' }
+      where: { is_active: true }
     });
 
     if (rules.length < 2) {
       return NextResponse.json({ message: 'Aturan poin belum diatur oleh Admin di Dashboard.' }, { status: 500 });
     }
 
-    const gradeB = rules[0]; // Standar (min_quality 0)
-    const gradeA = rules[1]; // Premium (min_quality sebesar threshold Admin)
+    const gradeB = rules.find((r: any) => r.quality === 'bad') || rules[0]; // Standar
+    const gradeA = rules.find((r: any) => r.quality === 'good') || rules[1]; // Premium
 
     // 3. Logika Penentuan Harga & Perhitungan Poin
-    const isPremium = skor_kualitas >= gradeA.min_quality;
+    const isPremium = skor_kualitas >= 80; // Hardcoded threshold
     const targetRule = isPremium ? gradeA : gradeB;
     const totalPoints = volume_disetor * targetRule.point_per_liter;
 
@@ -56,13 +55,24 @@ export async function POST(request: Request) {
     await prisma.$transaction(async (tx: any) => {
 
       // A. Cetak Struk Transaksi (Simpan ke deposit_oil)
-      await tx.deposit_oil.create({
+      await tx.oilDeposit.create({
         data: {
           id_nasabah: id_nasabah,
           id_device: id_device,
-          volume: volume_disetor,
-          quality: skor_kualitas, // Simpan skor asli misal 82%
+          volume: parseFloat(volume_disetor),
+          quality_score: parseFloat(skor_kualitas),
           point_earned: totalPoints,
+        }
+      });
+
+      // Notify Nasabah Transaction Success
+      await tx.notification.create({
+        data: {
+          id_user: id_nasabah,
+          title: 'Setoran Berhasil',
+          message: `Setoran minyak Anda sebanyak ${parseFloat(volume_disetor)} Liter berhasil disimpan. Poin bertambah ${totalPoints}.`,
+          type: 'success',
+          link: '/dashboard/nasabah'
         }
       });
 
@@ -77,10 +87,24 @@ export async function POST(request: Request) {
       }
 
       // C. Tambah Volume ke Jerigen Fisik (Tangki GOOD atau BAD)
+      const newVolume = targetJerigen.current_volume + parseFloat(volume_disetor);
+      const isFull = newVolume >= targetJerigen.max_capacity;
+      
       await tx.jerigen.update({
         where: { id_jerigen: targetJerigen.id_jerigen },
-        data: { current_volume: targetJerigen.current_volume + volume_disetor }
+        data: { 
+          current_volume: newVolume,
+          status: isFull ? 'full' : 'available'
+        }
       });
+
+      if (isFull && targetJerigen.status !== 'full') {
+        await tx.notification.create({ data: { id_user: device.id_mitra, title: 'Jerigen Penuh', message: `Jerigen ${targetJerigen.jerigen_code} telah penuh.`, type: 'warning' } });
+        const pengepuls = await tx.user.findMany({ where: { role: 'pengepul' } });
+        if (pengepuls.length > 0) {
+          await tx.notification.createMany({ data: pengepuls.map((p: any) => ({ id_user: p.id_user, title: 'Info Pickup', message: `Jerigen ${targetJerigen.jerigen_code} di lokasi ${device.location_name} siap dijemput.`, type: 'info' })) });
+        }
+      }
 
       // D. Kembalikan status mesin dari 'standby' menjadi 'disconnect' (atau idle)
       await tx.device.update({

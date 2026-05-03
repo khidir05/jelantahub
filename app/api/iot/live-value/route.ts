@@ -12,10 +12,10 @@ type MqttReading = {
   [key: string]: unknown;
 };
 
-const MQTT_HOST = process.env.MQTT_HOST || 'mqtt://103.189.235.216';
-const MQTT_USERNAME = process.env.MQTT_USERNAME || 'JelantahHub';
-const MQTT_PASSWORD = process.env.MQTT_PASSWORD || 'MqttNodered765';
-const MQTT_TOPIC = process.env.MQTT_TOPIC || 'jelantah/DEV-001-SBY/value';
+const MQTT_HOST = process.env.MQTT_HOST as string;
+const MQTT_USERNAME = process.env.MQTT_USERNAME as string;
+const MQTT_PASSWORD = process.env.MQTT_PASSWORD as string;
+const MQTT_TOPIC = process.env.MQTT_TOPIC as string;
 
 let client: MqttClient | null = null;
 let isConnected = false;

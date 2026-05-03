@@ -54,6 +54,20 @@ export async function POST(request: Request) {
             status: 'offline', process: 'disconnect'
           }
         });
+        
+        // Notify admin
+        const admins = await tx.user.findMany({ where: { role: 'admin' } });
+        if (admins.length > 0) {
+          await tx.notification.createMany({
+            data: admins.map((admin: any) => ({
+              id_user: admin.id_user,
+              title: 'Mitra Baru Mendaftar',
+              message: `Mitra ${name} mendaftar dan menunggu persetujuan.`,
+              type: 'info',
+              link: '/dashboard/admin'
+            }))
+          });
+        }
       }
       return newUser;
     });

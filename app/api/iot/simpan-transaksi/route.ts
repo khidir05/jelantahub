@@ -39,8 +39,10 @@ export async function POST(request: Request) {
     });
     
     let pointPerLiter = 0;
+    const isGoodQuality = skor_kualitas >= 80;
+    
     for (const rule of pointRules) {
-      if (skor_kualitas >= rule.min_quality && skor_kualitas <= rule.max_quality) {
+      if ((isGoodQuality && rule.quality === 'good') || (!isGoodQuality && rule.quality === 'bad')) {
         pointPerLiter = rule.point_per_liter;
         break;
       }
@@ -48,8 +50,6 @@ export async function POST(request: Request) {
 
     // Fallback if no matching rule
     if (pointPerLiter === 0 && pointRules.length > 0) {
-       // if not match anything but there are rules, maybe just use lowest/highest or 0
-       // We keep it 0 or use the first rule as fallback
        pointPerLiter = pointRules[0].point_per_liter;
     }
 
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       });
 
       // b. Insert OilDeposit
-      await tx.oilDeposit.create({
+      const deposit = await tx.oilDeposit.create({
         data: {
           id_device: device.id_device,
           id_nasabah: device.id_nasabah!, // Safe because checked above
@@ -76,6 +76,17 @@ export async function POST(request: Request) {
           volume: parseFloat(volume_disetor),
           quality_score: parseFloat(skor_kualitas),
           point_earned: pointEarned
+        }
+      });
+
+      // Notify Nasabah Transaction Success
+      await tx.notification.create({
+        data: {
+          id_user: device.id_nasabah!,
+          title: 'Setoran Berhasil',
+          message: `Setoran minyak Anda sebanyak ${parseFloat(volume_disetor)} Liter berhasil disimpan. Poin bertambah ${pointEarned}.`,
+          type: 'success',
+          link: '/dashboard/nasabah'
         }
       });
 
@@ -88,22 +99,42 @@ export async function POST(request: Request) {
 
       // d. Update Jerigen Volume (Assume A is index 0, B is index 1)
       if (device.jerigens.length > 0 && volume_jerigen_a !== undefined) {
+        const jA = device.jerigens[0];
+        const isFullA = parseFloat(volume_jerigen_a) >= jA.max_capacity;
         await tx.jerigen.update({
-          where: { id_jerigen: device.jerigens[0].id_jerigen },
+          where: { id_jerigen: jA.id_jerigen },
           data: { 
             current_volume: parseFloat(volume_jerigen_a),
-            status: parseFloat(volume_jerigen_a) >= device.jerigens[0].max_capacity ? 'full' : 'available' 
+            status: isFullA ? 'full' : 'available' 
           }
         });
+        
+        if (isFullA && jA.status !== 'full') {
+          await tx.notification.create({ data: { id_user: device.id_mitra, title: 'Jerigen Penuh', message: `Jerigen ${jA.jerigen_code} telah penuh.`, type: 'warning' } });
+          const pengepuls = await tx.user.findMany({ where: { role: 'pengepul' } });
+          if (pengepuls.length > 0) {
+            await tx.notification.createMany({ data: pengepuls.map((p: any) => ({ id_user: p.id_user, title: 'Info Pickup', message: `Jerigen ${jA.jerigen_code} di lokasi ${device.location_name} siap dijemput.`, type: 'info' })) });
+          }
+        }
       }
       if (device.jerigens.length > 1 && volume_jerigen_b !== undefined) {
+        const jB = device.jerigens[1];
+        const isFullB = parseFloat(volume_jerigen_b) >= jB.max_capacity;
         await tx.jerigen.update({
-          where: { id_jerigen: device.jerigens[1].id_jerigen },
+          where: { id_jerigen: jB.id_jerigen },
           data: { 
             current_volume: parseFloat(volume_jerigen_b),
-            status: parseFloat(volume_jerigen_b) >= device.jerigens[1].max_capacity ? 'full' : 'available' 
+            status: isFullB ? 'full' : 'available' 
           }
         });
+        
+        if (isFullB && jB.status !== 'full') {
+          await tx.notification.create({ data: { id_user: device.id_mitra, title: 'Jerigen Penuh', message: `Jerigen ${jB.jerigen_code} telah penuh.`, type: 'warning' } });
+          const pengepuls = await tx.user.findMany({ where: { role: 'pengepul' } });
+          if (pengepuls.length > 0) {
+            await tx.notification.createMany({ data: pengepuls.map((p: any) => ({ id_user: p.id_user, title: 'Info Pickup', message: `Jerigen ${jB.jerigen_code} di lokasi ${device.location_name} siap dijemput.`, type: 'info' })) });
+          }
+        }
       }
 
       // e. Reset Device Lock

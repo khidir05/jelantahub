@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     }
 
     if (action === 'GET_RULES') {
-      const rules = await prisma.pointRule.findMany({ orderBy: { min_quality: 'asc' } });
+      const rules = await prisma.pointRule.findMany({ orderBy: { id_rule: 'asc' } });
       return NextResponse.json(rules);
     }
 
@@ -64,27 +64,25 @@ export async function POST(request: Request) {
 
     // 3. SAVE POINT CONFIG (STRATEGI: HAPUS SEMUA & BUAT 2 BARU)
     if (action === 'SAVE_POINT_CONFIG') {
-      const { threshold, pointA, pointB } = body;
+      const { pointA, pointB } = body;
       
       await prisma.$transaction(async (tx: any) => {
         // A. Bersihkan tabel (Hapus semua data aturan yang ada)
         await tx.pointRule.deleteMany({});
 
-        // B. Buat Aturan Grade B (Standar) -> Kualitas 0 sampai < Threshold
+        // B. Buat Aturan Grade Bad
         await tx.pointRule.create({
           data: {
-            min_quality: 0,
-            max_quality: parseFloat(threshold) - 0.1,
+            quality: 'bad',
             point_per_liter: parseFloat(pointB),
             is_active: true
           }
         });
 
-        // C. Buat Aturan Grade A (Premium) -> Kualitas Threshold sampai 100
+        // C. Buat Aturan Grade Good
         await tx.pointRule.create({
           data: {
-            min_quality: parseFloat(threshold),
-            max_quality: 100,
+            quality: 'good',
             point_per_liter: parseFloat(pointA),
             is_active: true
           }

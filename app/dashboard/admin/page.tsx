@@ -14,7 +14,7 @@ export default function AdminDashboard() {
   const [deviceCodeInput, setDeviceCodeInput] = useState('');
 
   // State untuk Konfigurasi Poin 2-Grade
-  const [gradeConfig, setGradeConfig] = useState({ threshold: 80, pointA: 50, pointB: 10 });
+  const [gradeConfig, setGradeConfig] = useState({ pointA: 50, pointB: 10 });
 
   const fetchData = async () => {
     try {
@@ -26,12 +26,11 @@ export default function AdminDashboard() {
       setUsers(resUsers.data);
       setLinks(resLinks.data);
 
-      // Pastikan ada 2 data (Grade B di index 0, Grade A di index 1 karena diurutkan asc)
-      if (resRules.data && resRules.data.length === 2) {
+      // Pastikan ada 2 data (Good dan Bad)
+      if (resRules.data && resRules.data.length >= 2) {
         setGradeConfig({
-          threshold: resRules.data[1].min_quality,
-          pointA: resRules.data[1].point_per_liter,
-          pointB: resRules.data[0].point_per_liter
+          pointA: resRules.data.find((r: any) => r.quality === 'good')?.point_per_liter || 50,
+          pointB: resRules.data.find((r: any) => r.quality === 'bad')?.point_per_liter || 10
         });
       }
     } catch (err) {
@@ -223,18 +222,9 @@ export default function AdminDashboard() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-600 mb-2">Batas Minimal Kualitas (%)</label>
-                  <div className="relative">
-                    <input 
-                      type="number" 
-                      value={gradeConfig.threshold}
-                      onChange={(e) => setGradeConfig({...gradeConfig, threshold: parseFloat(e.target.value) || 0})}
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-extrabold text-xl text-slate-800 focus:ring-2 focus:ring-green-500 outline-none pr-12" 
-                      required min="1" max="100"
-                    />
-                    <span className="absolute right-4 top-4 text-slate-400 font-bold text-xl">%</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-2 font-medium">Minyak dengan kualitas di atas angka ini akan masuk ke Grade A.</p>
+                  <p className="text-sm font-medium text-slate-500 mb-4">
+                    Kategori ini berlaku untuk minyak jelantah dengan kualitas baik (Grade Good).
+                  </p>
                 </div>
 
                 <div>
@@ -266,12 +256,9 @@ export default function AdminDashboard() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-600 mb-2">Batas Kualitas (%)</label>
-                  <div className="w-full p-4 bg-slate-100 border border-slate-200 rounded-xl font-bold text-lg text-slate-500 flex justify-between items-center cursor-not-allowed">
-                    <span>Di bawah Grade A</span>
-                    <span>&lt; {gradeConfig.threshold}%</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-2 font-medium">Otomatis dihitung untuk minyak yang tidak memenuhi syarat Grade A.</p>
+                  <p className="text-sm font-medium text-slate-500 mb-4">
+                    Kategori ini berlaku untuk minyak jelantah dengan kualitas buruk (Grade Bad).
+                  </p>
                 </div>
 
                 <div>

@@ -45,6 +45,7 @@ model User {
   devices      Device[]     @relation("MitraDevices")
   pickup_logs  PickupLog[]  @relation("PengepulLogs")
   oil_deposits OilDeposit[] @relation("NasabahDeposits")
+  notifications Notification[]
 
   @@map("users")
 }
@@ -152,8 +153,37 @@ model RegistrationLink {
 
 model PointRule {
   id_rule         Int       @id @default(autoincrement())
-  min_quality     Float
-  max_quality     Float
+  quality         String    @db.VarChar(50)
   point_per_liter Float
   is_active       Boolean   @default(true)
+
+  @@map("point_rules")
+}
+
+enum NotificationType {
+  info
+  success
+  warning
+  alert
+}
+
+model Notification {
+  id_notification BigInt            @id @default(autoincrement())
+  id_user         String
+  title           String?           @db.VarChar(255)
+  message         String?           @db.Text
+  type            NotificationType?
+  is_read         Boolean           @default(false)
+  read_at         DateTime?
+  link            String?           @db.VarChar(255)
+  
+  ref_table       String?           @db.VarChar(100)
+  ref_id          String?           @db.VarChar(100)
+
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @default(now()) @updatedAt
+
+  user            User              @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
+
+  @@map("notifications")
 }
