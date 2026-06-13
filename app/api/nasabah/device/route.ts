@@ -7,7 +7,6 @@ export async function GET(request: Request) {
   const idNasabah = searchParams.get('id_nasabah');
   
   try {
-    // 1. Polling Check Process Device
     if (checkId) {
       const device = await prisma.device.findUnique({
         where: { id_device: checkId },
@@ -17,13 +16,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ process: device.process });
     }
     
-    // 2. Fetch Dashboard Devices Data
     if (idNasabah) {
-      // AUTO-RELEASE ZOMBIE LOCK (10 minutes)
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       await prisma.device.updateMany({
         where: {
-          process: { in: ['standby', 'load'] }, // Include load just in case
+          process: { in: ['standby', 'load'] },
           updated_at: { lt: tenMinutesAgo }
         },
         data: {
@@ -47,9 +44,10 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ message: 'Invalid params' }, { status: 400 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in GET /api/nasabah/device:', error);
-    return NextResponse.json({ message: error.message }, { status: 500 });
+    return NextResponse.json({ message }, { status: 500 });
   }
 }
 
@@ -88,8 +86,9 @@ export async function POST(request: Request) {
     }
     
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in POST /api/nasabah/device:', error);
-    return NextResponse.json({ message: error.message }, { status: 500 });
+    return NextResponse.json({ message }, { status: 500 });
   }
 }

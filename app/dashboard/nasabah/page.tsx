@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { Wallet, History, Server, Loader2, CheckCircle2, XCircle, MapPin, Zap, ArrowRight, RefreshCcw, Droplets } from 'lucide-react';
+import { Wallet, History, Server, Loader2, CheckCircle2, XCircle, MapPin, Zap, ArrowRight, RefreshCcw, Droplets, LayoutDashboard, Gift } from 'lucide-react';
 import api from '../../lib/axios';
+import RewardsTab from './RewardsTab';
 
 const fetcher = (url: string, userId: string) => api.get(url, { headers: { 'x-user-id': userId } }).then(res => res.data);
 
@@ -20,6 +21,7 @@ export default function NasabahDashboard() {
   const [activeDevice, setActiveDevice] = useState<any | null>(null);
   const [uiState, setUiState] = useState('IDLE');
   const [isRefreshing, setIsRefreshing] = useState(false); // Untuk animasi tombol refresh
+  const [activeMainTab, setActiveMainTab] = useState('beranda'); // 'beranda' | 'rewards'
 
   const [mqttPayload, setMqttPayload] = useState<any>(null);
   const [mqttConnected, setMqttConnected] = useState(false);
@@ -183,7 +185,28 @@ export default function NasabahDashboard() {
         <p className="text-slate-500 mt-1">Pantau poin dan kelola setoran minyak Anda di sini.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* TABS NAVIGATION */}
+      <div className="flex gap-2 p-1 bg-slate-200/50 rounded-2xl w-full sm:w-fit max-w-full overflow-x-auto border border-slate-200/60">
+        <button 
+          onClick={() => setActiveMainTab('beranda')}
+          className={`shrink-0 flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl font-bold transition-all ${
+            activeMainTab === 'beranda' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'
+          }`}
+        >
+          <LayoutDashboard className="w-5 h-5" /> Setoran
+        </button>
+        <button 
+          onClick={() => setActiveMainTab('rewards')}
+          className={`shrink-0 flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl font-bold transition-all ${
+            activeMainTab === 'rewards' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'
+          }`}
+        >
+          <Gift className="w-5 h-5" /> Tukar Poin
+        </button>
+      </div>
+
+      {activeMainTab === 'beranda' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8">
         
         {/* ========================================= */}
         {/* KOLOM KIRI (Span 5): SALDO & MESIN        */}
@@ -191,7 +214,7 @@ export default function NasabahDashboard() {
         <div className="lg:col-span-5 space-y-8">
           
           {/* CARD SALDO (Desain Mewah) */}
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[2rem] p-8 shadow-xl relative overflow-hidden">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[2rem] p-5 sm:p-6 lg:p-8 shadow-xl relative overflow-hidden">
             <div className="absolute -right-6 -top-6 w-32 h-32 bg-slate-700 rounded-full opacity-50 blur-2xl"></div>
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-6">
@@ -207,7 +230,7 @@ export default function NasabahDashboard() {
           </div>
 
           {/* AREA INTERAKSI MESIN */}
-          <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-200">
+          <div className="bg-white rounded-[2rem] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="bg-orange-100 p-2.5 rounded-xl">
@@ -361,7 +384,7 @@ export default function NasabahDashboard() {
         {/* KOLOM KANAN (Span 7): HISTORI             */}
         {/* ========================================= */}
         <div className="lg:col-span-7">
-          <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-200 h-full">
+          <div className="bg-white rounded-[2rem] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-200 h-full">
             <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
               <div className="bg-slate-100 p-2.5 rounded-xl">
                 <History className="text-slate-600 w-5 h-5" />
@@ -409,6 +432,9 @@ export default function NasabahDashboard() {
         </div>
 
       </div>
+      ) : (
+        <RewardsTab userId={userId} saldoPoin={tabungan.saldo_poin} onExchangeSuccess={() => mutateTabungan()} />
+      )}
     </div>
   );
 }

@@ -32,10 +32,10 @@ enum JerigenStatus {
 
 model User {
   id_user    String   @id @default(uuid())
-  name       String
-  username   String   @unique
-  no_telp    String?
-  password   String
+  name       String   @db.VarChar(40)
+  username   String   @unique @db.VarChar(20)
+  no_telp    String?  @db.VarChar(15)
+  password   String   @db.VarChar(100)
   role       Role
   is_active  Boolean  @default(true)
   created_at DateTime @default(now())
@@ -47,12 +47,15 @@ model User {
   oil_deposits OilDeposit[] @relation("NasabahDeposits")
   notifications Notification[]
 
+  items           Item[]          @relation("MitraItems")
+  point_exchanges PointExchange[] @relation("NasabahExchanges")
+
   @@map("users")
 }
 
 model Point {
   id_nasabah String   @id
-  balance    Float    @default(0)
+  balance    Int      @default(0)
   updated_at DateTime @updatedAt
 
   user User @relation(fields: [id_nasabah], references: [id_user], onDelete: Cascade)
@@ -62,13 +65,13 @@ model Point {
 
 model Device {
   id_device     String        @id @default(uuid())
-  device_code   String        @unique
-  location_name String
-  address       String?
+  device_code   String        @unique @db.VarChar(10)
+  location_name String        @db.VarChar(15)
+  address       String?       @db.Text
   status        DeviceStatus  
   process       DeviceProcess @default(disconnect)
   id_mitra      String
-  id_nasabah    String?
+  id_nasabah    String?       @db.VarChar(50)
   created_at    DateTime      @default(now())
   updated_at    DateTime      @updatedAt
 
@@ -82,10 +85,10 @@ model Device {
 
 model SensorRead {
   id_read   String  @id @default(uuid())
-  volume    Float
-  quality   Float
-  jerigen_a Float?
-  jerigen_b Float?
+  volume    Int
+  quality   Int
+  jerigen_a Int?
+  jerigen_b Int?
 
   oil_deposits OilDeposit[]
 
@@ -94,10 +97,10 @@ model SensorRead {
 
 model Jerigen {
   id_jerigen        String        @id @default(uuid())
-  jerigen_code      String        @unique
+  jerigen_code      String        @unique @db.VarChar(15)
   id_device         String
-  max_capacity      Float
-  current_volume    Float         @default(0)
+  max_capacity      Int
+  current_volume    Int           @default(0)
   status            JerigenStatus @default(empty)
   last_collected_at DateTime?
   created_at        DateTime      @default(now())
@@ -114,8 +117,8 @@ model PickupLog {
   jerigen_code  String
   id_device     String
   id_pengepul   String
-  volume_before Float
-  volume_taken  Float
+  volume_before Int
+  volume_taken  Int
   created_at    DateTime @default(now())
 
   jerigen  Jerigen @relation(fields: [jerigen_code], references: [jerigen_code])
@@ -130,9 +133,9 @@ model OilDeposit {
   id_read       String?
   id_device     String
   id_nasabah    String
-  volume        Float
-  quality_score Float
-  point_earned  Float
+  volume        Int
+  quality_score Int
+  point_earned  Int
   created_at    DateTime @default(now())
 
   sensor_read SensorRead? @relation(fields: [id_read], references: [id_read])
@@ -142,19 +145,10 @@ model OilDeposit {
   @@map("oil_deposits")
 }
 
-model RegistrationLink {
-  id         Int      @id @default(autoincrement())
-  token      String   @unique @default(uuid())
-  role       String
-  is_used    Boolean  @default(false)
-  expires_at DateTime
-  created_at DateTime @default(now())
-}
-
 model PointRule {
   id_rule         Int       @id @default(autoincrement())
-  quality         String    @db.VarChar(50)
-  point_per_liter Float
+  quality         String    @db.VarChar(10)
+  point_per_liter Int
   is_active       Boolean   @default(true)
 
   @@map("point_rules")
@@ -186,4 +180,43 @@ model Notification {
   user            User              @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+enum ExchangeStatus {
+  pending
+  completed
+  cancelled
+}
+
+model Item {
+  id_item     String   @id @default(uuid()) // UUID/CUID
+  id_mitra    String
+  item_name   String   @db.VarChar(20)
+  description String   @db.Text
+  point_cost  Int
+  stock       Int
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  mitra       User            @relation("MitraItems", fields: [id_mitra], references: [id_user])
+  exchanges   PointExchange[]
+
+  @@map("items")
+}
+
+model PointExchange {
+  id_exchange       String         @id @default(uuid()) // UUID/CUID
+  id_nasabah        String
+  id_item           String
+  quantity          Int
+  total_points_used Int
+  status            ExchangeStatus @default(pending)
+  created_at        DateTime       @default(now())
+  updated_at        DateTime       @updatedAt
+
+  nasabah User @relation("NasabahExchanges", fields: [id_nasabah], references: [id_user])
+  item    Item @relation(fields: [id_item], references: [id_item])
+
+  @@map("point_exchanges")
 }

@@ -39,17 +39,17 @@ export async function GET(request: Request) {
     if (!device) return NextResponse.json({ message: 'Device tidak ditemukan' }, { status: 404 });
 
     return NextResponse.json(device, { status: 200 });
-  } catch (error: any) {
-    // PERBAIKAN: Trik Debugging agar error asli ketahuan
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error Backend Mitra GET:', error);
-    return NextResponse.json({ message: `Error Server: ${error.message || String(error)}` }, { status: 500 });
+    return NextResponse.json({ message: `Error Server: ${message}` }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id_device, id_jerigen, device_code, location_name, address, max_capacity } = body;
+    const { id_device, device_code, location_name, address, jerigen_updates } = body;
 
     const updatedDevice = await prisma.device.update({
       where: { id_device },
@@ -57,21 +57,34 @@ export async function PUT(request: Request) {
       include: { jerigens: true }
     });
 
-    if (id_jerigen) {
-      await prisma.jerigen.update({
-        where: { id_jerigen },
-        data: { max_capacity: parseFloat(max_capacity) }
-      });
+    if (Array.isArray(jerigen_updates)) {
+      for (const item of jerigen_updates) {
+        const capacityInt = Math.round(parseFloat(item.max_capacity));
+        await prisma.jerigen.update({
+          where: { id_jerigen: item.id_jerigen },
+          data: { max_capacity: capacityInt }
+        });
+      }
     }
 
-    const jerigen = updatedDevice.jerigens[0];
-    if (jerigen && jerigen.current_volume >= (0.8 * parseFloat(max_capacity))) {
-      await sendTelegramAlert(location_name, jerigen.current_volume, parseFloat(max_capacity));
+    // Refresh jerigens information after update for alerts
+    const deviceWithJerigens = await prisma.device.findUnique({
+      where: { id_device },
+      include: { jerigens: true }
+    });
+
+    if (deviceWithJerigens && deviceWithJerigens.jerigens) {
+      for (const jerigen of deviceWithJerigens.jerigens) {
+        if (jerigen.current_volume >= (0.8 * jerigen.max_capacity)) {
+          await sendTelegramAlert(location_name, jerigen.current_volume, jerigen.max_capacity);
+        }
+      }
     }
 
     return NextResponse.json({ message: 'Berhasil update data' }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error Backend Mitra PUT:', error);
-    return NextResponse.json({ message: `Error Server: ${error.message || String(error)}` }, { status: 500 });
+    return NextResponse.json({ message: `Error Server: ${message}` }, { status: 500 });
   }
 }

@@ -47,7 +47,7 @@ async function main() {
   });
 
   // 3. Seed Mitra
-  await prisma.user.upsert({
+  const mitra = await prisma.user.upsert({
     where: { username: 'mitra1' },
     update: {},
     create: {
@@ -82,7 +82,69 @@ async function main() {
     },
   });
 
-  console.log('✅ Seeding database berhasil! Data user telah dibuat.');
+  // 6. Seed Perangkat (Device)
+  const device = await prisma.device.upsert({
+    where: { device_code: 'DEV-001-SB' },
+    update: {},
+    create: {
+      device_code: 'DEV-001-SB',
+      location_name: 'Mitra Sudirman',
+      address: 'Jl. Jend. Sudirman No. 123, Surabaya',
+      status: 'online',
+      process: 'disconnect',
+      id_mitra: mitra.id_user,
+    },
+  });
+
+  // 7. Seed Jerigen
+  await prisma.jerigen.upsert({
+    where: { jerigen_code: 'JG-GOOD-01' },
+    update: {},
+    create: {
+      jerigen_code: 'JG-GOOD-01',
+      id_device: device.id_device,
+      max_capacity: 100,
+      current_volume: 0,
+      status: 'empty',
+    },
+  });
+
+  await prisma.jerigen.upsert({
+    where: { jerigen_code: 'JG-BAD-01' },
+    update: {},
+    create: {
+      jerigen_code: 'JG-BAD-01',
+      id_device: device.id_device,
+      max_capacity: 100,
+      current_volume: 0,
+      status: 'empty',
+    },
+  });
+
+  // 8. Seed Point Rules
+  await prisma.pointRule.upsert({
+    where: { id_rule: 1 },
+    update: {},
+    create: {
+      id_rule: 1,
+      quality: 'good',
+      point_per_liter: 50,
+      is_active: true,
+    },
+  });
+
+  await prisma.pointRule.upsert({
+    where: { id_rule: 2 },
+    update: {},
+    create: {
+      id_rule: 2,
+      quality: 'bad',
+      point_per_liter: 10,
+      is_active: true,
+    },
+  });
+
+  console.log('✅ Seeding database berhasil! Data user, device, jerigen, dan point rules telah dibuat.');
 }
 
 main()

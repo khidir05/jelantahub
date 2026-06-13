@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import mqtt, { MqttClient } from 'mqtt';
 
@@ -12,10 +13,19 @@ type MqttReading = {
   [key: string]: unknown;
 };
 
-const MQTT_HOST = process.env.MQTT_HOST as string;
-const MQTT_USERNAME = process.env.MQTT_USERNAME as string;
-const MQTT_PASSWORD = process.env.MQTT_PASSWORD as string;
-const MQTT_TOPIC = process.env.MQTT_TOPIC as string;
+function getRequiredEnv(name: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing environment variable: ${name}`);
+  return value;
+}
+
+const MQTT_HOST = getRequiredEnv('MQTT_HOST');
+const MQTT_USERNAME = getRequiredEnv('MQTT_USERNAME');
+const MQTT_PASSWORD = getRequiredEnv('MQTT_PASSWORD');
+const MQTT_DEVICE_CODE = getRequiredEnv('MQTT_DEVICE_CODE');
+
+const valueTopic = `jelantah/${MQTT_DEVICE_CODE}/value`;
+const qualityTopic = `jelantah/${MQTT_DEVICE_CODE}/quality`;
 
 let client: MqttClient | null = null;
 let isConnected = false;
@@ -28,7 +38,6 @@ function parseMessage(raw: string): MqttReading {
     const parsed = JSON.parse(raw) as MqttReading;
     return parsed;
   } catch {
-    // Fallback untuk payload non-JSON: anggap sebagai volume langsung.
     const numericVolume = Number(raw);
     if (!Number.isNaN(numericVolume)) {
       return { volume_disetor: numericVolume, timestamp: new Date().toISOString() };
@@ -49,7 +58,7 @@ function ensureMqttConnection() {
 
   client.on('connect', () => {
     isConnected = true;
-    client?.subscribe(MQTT_TOPIC, (error) => {
+    client?.subscribe(valueTopic, (error) => {
       if (error) {
         console.error('MQTT subscribe error:', error.message);
       }
@@ -79,9 +88,27 @@ function ensureMqttConnection() {
 export async function GET() {
   ensureMqttConnection();
 
+  // Khusus untuk development lokal, jika belum ada payload, kita usahakan tunggu sebentar
+  // agar preview tidak selalu null.
+  if (!latestPayload && client && process.env.NODE_ENV === 'development') {
+    await new Promise<void>((resolve) => {
+      let timeout: NodeJS.Timeout;
+      const handler = () => {
+        clearTimeout(timeout);
+        client?.removeListener('message', handler);
+        resolve();
+      };
+      timeout = setTimeout(() => {
+        client?.removeListener('message', handler);
+        resolve();
+      }, 2500);
+      client?.on('message', handler);
+    });
+  }
+
   return NextResponse.json({
     connected: isConnected,
-    topic: MQTT_TOPIC,
+    topic: valueTopic,
     latestTopic,
     updatedAt: latestUpdatedAt,
     payload: latestPayload,
@@ -91,10 +118,10 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     ensureMqttConnection();
+    
     const body = await request.json();
     
     if (body.action === 'PUBLISH_QUALITY') {
-      const qualityTopic = MQTT_TOPIC.replace('/value', '/quality');
       if (client && isConnected) {
         client.publish(qualityTopic, JSON.stringify({ quality: 'CHEK' }));
         return NextResponse.json({ success: true, message: `Published to ${qualityTopic}` });

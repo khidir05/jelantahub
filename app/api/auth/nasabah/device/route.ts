@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({ activeDevice: null, availableDevices });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ message: 'Error fetching devices' }, { status: 500 });
   }
 }

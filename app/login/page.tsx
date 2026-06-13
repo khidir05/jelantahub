@@ -39,24 +39,23 @@ export default function LoginPage() {
       localStorage.setItem('username', user.name);
       localStorage.setItem('user_id', user.id_user);
 
-      // Routing Role-Based 
-      // Routing Role-Based menggunakan REPLACE (bukan PUSH)
+      // Routing Role-Based menggunakan window.location.href untuk memastikan cookie tersimpan sepenuhnya sebelum navigasi
       switch (user.role) {
         case 'admin':
-          router.replace('/dashboard/admin');
+          window.location.href = '/dashboard/admin';
           break;
         case 'nasabah':
-          router.replace('/dashboard/nasabah');
+          window.location.href = '/dashboard/nasabah';
           break;
         case 'mitra':
-          router.replace('/dashboard/mitra');
+          window.location.href = '/dashboard/mitra';
           break;
         case 'pengepul':
-          router.replace('/dashboard/pengepul');
+          window.location.href = '/dashboard/pengepul';
           break;
         default:
           alert('Role tidak terdefinisi');
-          router.replace('/login');
+          window.location.href = '/login';
       }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Login Gagal. Periksa kembali kredensial Anda.');

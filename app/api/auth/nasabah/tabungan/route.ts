@@ -3,8 +3,6 @@ import { prisma } from '../../../../lib/prisma';
 
 export async function GET(request: Request) {
   try {
-    // Di aplikasi nyata, ID ini diambil dari verifikasi Token JWT di Headers.
-    // Untuk penyederhanaan saat ini, kita ambil dari header atau query
     const id_nasabah = request.headers.get('x-user-id'); 
 
     if (!id_nasabah) {
@@ -28,8 +26,9 @@ export async function GET(request: Request) {
       riwayat: history,
     }, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error fetch tabungan:', error);
-    return NextResponse.json({ message: 'Terjadi kesalahan server' }, { status: 500 });
+    return NextResponse.json({ message }, { status: 500 });
   }
 }

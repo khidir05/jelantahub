@@ -5,22 +5,27 @@ import { cookies } from 'next/headers';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rahasia_jelantahub_super_aman_123';
 
-// Helper function to get user from token
-async function getUserFromToken() {
+type TokenUser = { id: string };
+
+async function getUserFromToken(): Promise<TokenUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
 
   if (!token) return null;
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
-    return decoded;
-  } catch (err) {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (typeof decoded === 'object' && decoded && 'id' in decoded) {
+      const maybeId = (decoded as { id?: unknown }).id;
+      if (typeof maybeId === 'string') return { id: maybeId };
+    }
+    return null;
+  } catch {
     return null;
   }
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const user = await getUserFromToken();
     if (!user) {
@@ -30,18 +35,18 @@ export async function GET(request: Request) {
     const notifications = await prisma.notification.findMany({
       where: { id_user: user.id },
       orderBy: { created_at: 'desc' },
-      take: 20 // Limit to last 20 notifications
+      take: 20
     });
 
-    // Serialize BigInt manually
     const serializedNotifications = notifications.map(n => ({
       ...n,
       id_notification: n.id_notification.toString()
     }));
 
     return NextResponse.json(serializedNotifications);
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ message }, { status: 500 });
   }
 }
 
@@ -72,7 +77,8 @@ export async function PUT(request: Request) {
     }
 
     return NextResponse.json({ message: 'Invalid action' }, { status: 400 });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ message }, { status: 500 });
   }
 }

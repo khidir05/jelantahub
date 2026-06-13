@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { Server, MapPin, Edit3, BatteryCharging, AlertTriangle, X, Check, Droplet, Filter } from 'lucide-react';
+import { Server, MapPin, Edit3, BatteryCharging, AlertTriangle, X, Check, Droplet, Filter, LayoutDashboard, Package, History } from 'lucide-react';
 import api from '../../lib/axios';
+import ItemsTab from './ItemsTab';
+import HistoryTab from './HistoryTab';
 
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
@@ -11,9 +13,8 @@ export default function MitraDashboard() {
   const [userId, setUserId] = useState('');
   const [deviceData, setDeviceData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeMainTab, setActiveMainTab] = useState('beranda');
   
-  // State untuk Modal Edit (jerigens sekarang berupa Array)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     device_code: '',
     location_name: '',
@@ -37,9 +38,9 @@ export default function MitraDashboard() {
       setDeviceData(rawDeviceData);
       setIsLoading(false);
       
-      // Isi default form dengan MAP semua jerigen, HANYA jika modal sedang tertutup
+      // Isi default form dengan MAP semua jerigen, HANYA jika tab edit tidak aktif
       // Agar pengguna yang sedang mengetik tidak terganggu oleh update SWR
-      if (!isEditModalOpen) {
+      if (activeMainTab !== 'edit-config') {
         setFormData({
           device_code: rawDeviceData.device_code || '',
           location_name: rawDeviceData.location_name || '',
@@ -53,7 +54,7 @@ export default function MitraDashboard() {
         });
       }
     }
-  }, [rawDeviceData, isEditModalOpen]);
+  }, [rawDeviceData, activeMainTab]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +67,7 @@ export default function MitraDashboard() {
         jerigen_updates: formData.jerigens // Kirim array jerigen ke API
       });
       alert('Data berhasil diperbarui!');
-      setIsEditModalOpen(false);
+      setActiveMainTab('beranda'); // kembali ke tampilan beranda
       mutate(); // Segera menyuruh SWR memuat ulang data terbaru
     } catch (error) {
       alert('Gagal memperbarui data.');
@@ -76,7 +77,7 @@ export default function MitraDashboard() {
   // Fungsi untuk handle perubahan nilai kapasitas pada spesifik jerigen
   const handleCapacityChange = (index: number, newValue: string) => {
     const updatedJerigens = [...formData.jerigens];
-    updatedJerigens[index].max_capacity = parseFloat(newValue) || 0;
+    updatedJerigens[index].max_capacity = parseInt(newValue, 10) || 0;
     setFormData({ ...formData, jerigens: updatedJerigens });
   };
 
@@ -90,18 +91,50 @@ export default function MitraDashboard() {
           <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Monitoring Lokasi</h1>
           <p className="text-slate-500 mt-1">Pantau status mesin dan kapasitas penampungan Anda.</p>
         </div>
+      </div>
+
+      {/* TABS NAVIGATION */}
+      <div className="flex flex-wrap gap-2 p-1 bg-slate-200/50 rounded-2xl w-full mb-6 border border-slate-200/60">
         <button 
-          onClick={() => setIsEditModalOpen(true)}
-          className="flex items-center gap-2 bg-white border-2 border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold hover:bg-slate-50 hover:border-orange-500 transition-all shadow-sm"
+          onClick={() => setActiveMainTab('beranda')}
+          className={`flex-1 min-w-[140px] flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            activeMainTab === 'beranda' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-300/50'
+          }`}
         >
-          <Edit3 className="w-5 h-5 text-orange-500" /> Edit Konfigurasi
+          <LayoutDashboard className="w-4 h-4" /> Mesin & Tangki
+        </button>
+        <button 
+          onClick={() => setActiveMainTab('items')}
+          className={`flex-1 min-w-[140px] flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            activeMainTab === 'items' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-300/50'
+          }`}
+        >
+          <Package className="w-4 h-4" /> Katalog Barang
+        </button>
+        <button 
+          onClick={() => setActiveMainTab('history')}
+          className={`flex-1 min-w-[140px] flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            activeMainTab === 'history' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-300/50'
+          }`}
+        >
+          <History className="w-4 h-4" /> Histori Transaksi
+        </button>
+        <button 
+          onClick={() => setActiveMainTab('edit-config')}
+          className={`flex-1 min-w-[140px] flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            activeMainTab === 'edit-config' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:bg-slate-300/50'
+          }`}
+        >
+          <Edit3 className="w-4 h-4" /> Edit Konfigurasi
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {activeMainTab === 'beranda' ? (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8">
         
         {/* CARD IDENTITAS MESIN (Kiri - Span 5) */}
-        <div className="lg:col-span-5 bg-white rounded-[2rem] p-8 shadow-sm border border-slate-200 relative overflow-hidden h-fit">
+        <div className="lg:col-span-5 bg-white rounded-[2rem] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-200 relative overflow-hidden h-fit">
           <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-bl-full -z-10"></div>
           <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-4">
             <div className="bg-blue-100 p-2.5 rounded-xl"><Server className="text-blue-600 w-6 h-6" /></div>
@@ -130,7 +163,7 @@ export default function MitraDashboard() {
         {/* AREA JERIGEN (Kanan - Span 7) */}
         <div className="lg:col-span-7 space-y-6">
           {!deviceData.jerigens || deviceData.jerigens.length === 0 ? (
-            <div className="bg-white rounded-[2rem] p-8 text-center py-20 border border-slate-200">
+            <div className="bg-white rounded-[2rem] p-4 sm:p-6 lg:p-8 text-center py-16 sm:py-20 border border-slate-200">
               <p className="text-slate-500 font-bold">Data jerigen belum tersedia di unit ini.</p>
             </div>
           ) : (
@@ -141,7 +174,7 @@ export default function MitraDashboard() {
               const isGood = jerigen.jerigen_code.includes('GOOD'); // Cek apakah ini tangki kualitas bagus
 
               return (
-                <div key={jerigen.id_jerigen} className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-200">
+                <div key={jerigen.id_jerigen} className="bg-white rounded-[2rem] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-200">
                   <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-4">
                     <div className="flex items-center gap-3">
                       <div className={`p-2.5 rounded-xl ${isGood ? 'bg-green-100' : 'bg-orange-100'}`}>
@@ -192,26 +225,30 @@ export default function MitraDashboard() {
           )}
         </div>
       </div>
-
-      {/* ========================================= */}
-      {/* MODAL EDIT KONFIGURASI MULTI-JERIGEN      */}
-      {/* ========================================= */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
-            <div className="bg-slate-800 p-6 flex justify-between items-center text-white sticky top-0 z-10">
-              <h3 className="text-xl font-bold flex items-center gap-2"><Edit3 className="w-5 h-5 text-orange-500" /> Edit Konfigurasi</h3>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
+        </>
+      ) : activeMainTab === 'items' ? (
+        <ItemsTab userId={userId} />
+      ) : activeMainTab === 'history' ? (
+        <HistoryTab userId={userId} />
+      ) : (
+        <div className="bg-white rounded-[2rem] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-200 w-full max-w-3xl mx-auto animate-in fade-in duration-300">
+          <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-5">
+            <div className="bg-orange-100 p-3 rounded-xl"><Edit3 className="text-orange-500 w-6 h-6" /></div>
+            <div>
+              <h3 className="text-2xl font-bold text-slate-800">Edit Konfigurasi Unit</h3>
+              <p className="text-slate-500 text-sm mt-1">Perbarui detail lokasi dan kapasitas tangki yang terpasang.</p>
             </div>
-            
-            <form onSubmit={handleUpdate} className="p-8 space-y-5">
+          </div>
+          
+          <form onSubmit={handleUpdate} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Kode Perangkat</label>
                 <input 
                   type="text" 
                   value={formData.device_code}
                   onChange={(e) => setFormData({...formData, device_code: e.target.value})}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-orange-500 outline-none" required
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-orange-500 outline-none transition-all" required
                 />
               </div>
               <div>
@@ -220,47 +257,52 @@ export default function MitraDashboard() {
                   type="text" 
                   value={formData.location_name}
                   onChange={(e) => setFormData({...formData, location_name: e.target.value})}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none" required
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Alamat Lengkap</label>
-                <textarea 
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none resize-none h-24" required
-                ></textarea>
-              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Alamat Lengkap</label>
+              <textarea 
+                value={formData.address}
+                onChange={(e) => setFormData({...formData, address: e.target.value})}
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none resize-none h-32 transition-all" required
+              ></textarea>
+            </div>
 
-              {/* LOOPING INPUT KAPASITAS UNTUK SETIAP JERIGEN */}
-              <div className="border-t border-slate-200 pt-5 mt-5">
-                <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <Droplet className="w-5 h-5 text-blue-500" /> Kapasitas Tangki (Liter)
-                </h4>
-                <div className="space-y-4">
-                  {formData.jerigens.map((jData, index) => (
-                    <div key={jData.id_jerigen} className="flex flex-col">
-                      <label className="text-xs font-bold text-slate-500 mb-1 flex justify-between">
-                        <span>{jData.jerigen_code.includes('GOOD') ? 'Tangki Bagus (GOOD)' : 'Tangki Standar (BAD)'}</span>
-                        <span className="font-mono text-slate-400">{jData.jerigen_code}</span>
-                      </label>
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mt-8">
+              <h4 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <Droplet className="w-6 h-6 text-blue-500" /> Pengaturan Kapasitas Tangki (Liter)
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {formData.jerigens.map((jData, index) => (
+                  <div key={jData.id_jerigen} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <label className="text-sm font-bold text-slate-600 mb-2 flex justify-between items-center">
+                      <span>{jData.jerigen_code.includes('GOOD') ? '🟢 Tangki Bagus' : '🔴 Tangki Standar'}</span>
+                    </label>
+                    <p className="text-[10px] font-mono text-slate-400 mb-3">{jData.jerigen_code}</p>
+                    <div className="relative">
+                      <span className="absolute right-4 top-3.5 text-slate-400 font-bold text-sm">Liter</span>
                       <input 
                         type="number" 
                         value={jData.max_capacity}
                         onChange={(e) => handleCapacityChange(index, e.target.value)}
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" required min="1"
+                        className="w-full p-3 pr-14 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all" required min="1"
                       />
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-              
-              <div className="pt-4 flex gap-3 sticky bottom-0 bg-white">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="w-1/2 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200">Batal</button>
-                <button type="submit" className="w-1/2 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-500/30">Simpan Data</button>
-              </div>
-            </form>
-          </div>
+            </div>
+            
+            <div className="pt-8 flex gap-4">
+              <button type="button" onClick={() => setActiveMainTab('beranda')} className="w-1/3 py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">Batal</button>
+              <button type="submit" className="w-2/3 py-4 bg-orange-500 text-white rounded-xl font-bold text-lg hover:bg-orange-600 shadow-lg shadow-orange-500/30 transition-all flex items-center justify-center gap-2">
+                <Check className="w-5 h-5" /> Simpan Konfigurasi
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

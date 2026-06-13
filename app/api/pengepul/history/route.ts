@@ -11,15 +11,16 @@ export async function GET(request: Request) {
     const logs = await prisma.pickupLog.findMany({
       where: { id_pengepul },
       include: {
-        device: true, // Ambil info lokasi
+        device: true,
       },
-      orderBy: { created_at: 'desc' }, // Terbaru di atas
-      take: 50 // Batasi 50 riwayat terakhir agar tidak berat
+      orderBy: { created_at: 'desc' },
+      take: 50
     });
     
     return NextResponse.json(logs, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error GET History:', error);
-    return NextResponse.json({ message: `Error: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ message: `Error: ${message}` }, { status: 500 });
   }
 }
