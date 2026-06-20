@@ -20,9 +20,9 @@ export default function LoginPage() {
     const role = localStorage.getItem('role');
 
     if (token && role) {
-      router.replace(`/dashboard/${role}`);
+      window.location.replace(`/dashboard/${role.toLowerCase()}`);
     }
-  }, [router]);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,23 +39,12 @@ export default function LoginPage() {
       localStorage.setItem('username', user.name);
       localStorage.setItem('user_id', user.id_user);
 
-      // Routing Role-Based menggunakan window.location.replace untuk menghindari race condition pada cookie
-      switch (user.role) {
-        case 'admin':
-          window.location.replace('/dashboard/admin');
-          break;
-        case 'nasabah':
-          window.location.replace('/dashboard/nasabah');
-          break;
-        case 'mitra':
-          window.location.replace('/dashboard/mitra');
-          break;
-        case 'pengepul':
-          window.location.replace('/dashboard/pengepul');
-          break;
-        default:
-          alert('Role tidak terdefinisi');
-          window.location.replace('/login');
+      // Routing Role-Based secara dinamis dengan format huruf kecil (case-insensitive)
+      if (user && user.role) {
+        window.location.replace(`/dashboard/${user.role.toLowerCase()}`);
+      } else {
+        alert('Role tidak terdefinisi');
+        window.location.replace('/login');
       }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Login Gagal. Periksa kembali kredensial Anda.');
