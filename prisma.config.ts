@@ -1,9 +1,13 @@
+import 'dotenv/config';
 import { defineConfig } from '@prisma/config';
 
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL tidak ditemukan di file .env!");
+}
+
 export default defineConfig({
-  // Tambahkan URL database Anda di sini agar Prisma CLI bisa melakukan push
   datasource: {
-    url: process.env.DATABASE_URL || "postgresql://postgres:myamlabar@localhost:5432/jelanta?schema=public",
+    url: process.env.DATABASE_URL,
   },
   migrations: {
     seed: 'ts-node --compiler-options {"module":"CommonJS"} prisma/seed.ts',
