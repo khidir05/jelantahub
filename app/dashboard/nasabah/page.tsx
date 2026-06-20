@@ -26,6 +26,7 @@ export default function NasabahDashboard() {
   const [mqttPayload, setMqttPayload] = useState<any>(null);
   const [mqttConnected, setMqttConnected] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [selectedMitraId, setSelectedMitraId] = useState<string>('');
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user_id');
@@ -52,6 +53,10 @@ export default function NasabahDashboard() {
 
   useEffect(() => {
     if (devicesData) {
+      if (devicesData.envMitraId && !selectedMitraId) {
+        setSelectedMitraId(devicesData.envMitraId);
+      }
+
       if (devicesData.activeDevice) {
         setActiveDevice(devicesData.activeDevice);
         
@@ -176,6 +181,18 @@ export default function NasabahDashboard() {
     }
   };
 
+  // Extract unique available mitras from availableDevices
+  const availableMitras = Array.from(
+    new Map(
+      availableDevices
+        .filter((d: any) => d.mitra)
+        .map((d: any) => [d.id_mitra, d.mitra])
+    ).values()
+  ) as any[];
+
+  // Find the selected device based on selectedMitraId
+  const selectedDevice = availableDevices.find((d: any) => d.id_mitra === selectedMitraId);
+
   return (
     <div className="space-y-8 pb-10">
       
@@ -256,20 +273,45 @@ export default function NasabahDashboard() {
                   </div>
                 ) : (
                   <div className="text-center py-4">
-                    <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 px-4 py-1.5 rounded-full text-xs font-bold mb-6">
-                      <Zap className="w-4 h-4 fill-orange-500" /> Terhubung: {availableDevices[0].location_name}
-                    </div>
-                    <h2 className="text-2xl font-extrabold text-slate-800 mb-2">Mesin Siap!</h2>
-                    <p className="text-slate-500 text-sm mb-8 px-4">Klik tombol di bawah untuk membuka katup, lalu tuangkan minyak Anda secara perlahan.</p>
-                    
-                    <div className="flex flex-col gap-3">
-                      <button 
-                        onClick={() => handleStartSetor(availableDevices[0].id_device)}
-                        className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-2xl font-extrabold text-lg hover:from-orange-600 hover:to-orange-700 shadow-xl shadow-orange-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    {/* Dropdown Pilih Mitra */}
+                    <div className="mb-6 text-left animate-in fade-in slide-in-from-top-2 duration-300">
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Mitra Tempat Setor:</label>
+                      <select
+                        value={selectedMitraId}
+                        onChange={(e) => setSelectedMitraId(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/25 transition-all cursor-pointer hover:bg-slate-100/50"
                       >
-                        Mulai Setor Minyak
-                      </button>
+                        <option value="">-- Pilih Mitra --</option>
+                        {availableMitras.map((mitra: any) => (
+                          <option key={mitra.id_user} value={mitra.id_user}>
+                            {mitra.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
+
+                    {selectedDevice ? (
+                      <div className="animate-in zoom-in-95 duration-200">
+                        <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 px-4 py-1.5 rounded-full text-xs font-bold mb-6">
+                          <Zap className="w-4 h-4 fill-orange-500" /> Terhubung: {selectedDevice.location_name}
+                        </div>
+                        <h2 className="text-2xl font-extrabold text-slate-800 mb-2">Mesin Siap!</h2>
+                        <p className="text-slate-500 text-sm mb-8 px-4">Klik tombol di bawah untuk membuka katup, lalu tuangkan minyak Anda secara perlahan.</p>
+                        
+                        <div className="flex flex-col gap-3">
+                          <button 
+                            onClick={() => handleStartSetor(selectedDevice.id_device)}
+                            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-2xl font-extrabold text-lg hover:from-orange-600 hover:to-orange-700 shadow-xl shadow-orange-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                          >
+                            Mulai Setor Minyak
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 mb-8 text-center text-slate-500 text-sm">
+                        {selectedMitraId ? "Mesin Mitra terpilih sedang tidak tersedia/offline." : "Silakan pilih Mitra terlebih dahulu untuk memulai setor minyak."}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -278,6 +320,18 @@ export default function NasabahDashboard() {
             {/* STATE 2: STANDBY (Siap Setor) */}
             {uiState === 'STANDBY' && activeDevice && (
               <div className="text-center py-4">
+                {/* Dropdown Pilih Mitra (Disabled) */}
+                <div className="mb-6 text-left opacity-75">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Mitra Tempat Setor:</label>
+                  <select
+                    disabled
+                    value={activeDevice.id_mitra}
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 outline-none cursor-not-allowed"
+                  >
+                    <option value={activeDevice.id_mitra}>{activeDevice.mitra?.name || 'Unknown'}</option>
+                  </select>
+                </div>
+
                 <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 px-4 py-1.5 rounded-full text-xs font-bold mb-6">
                   <Zap className="w-4 h-4 fill-orange-500" /> Terhubung: {activeDevice.location_name}
                 </div>
@@ -304,6 +358,18 @@ export default function NasabahDashboard() {
             {/* STATE 3: LOADING (Sedang Setor) */}
             {uiState === 'LOADING' && activeDevice && (
               <div className="text-center py-6">
+                {/* Dropdown Pilih Mitra (Disabled) */}
+                <div className="mb-6 text-left opacity-75">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Mitra Tempat Setor:</label>
+                  <select
+                    disabled
+                    value={activeDevice.id_mitra}
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 outline-none cursor-not-allowed"
+                  >
+                    <option value={activeDevice.id_mitra}>{activeDevice.mitra?.name || 'Unknown'}</option>
+                  </select>
+                </div>
+
                 <div className="relative w-24 h-24 mx-auto mb-6">
                   <div className="absolute inset-0 bg-orange-100 rounded-full animate-ping opacity-50"></div>
                   <div className="absolute inset-0 bg-white rounded-full flex items-center justify-center shadow-lg z-10">
@@ -363,6 +429,18 @@ export default function NasabahDashboard() {
             {/* STATE 4: SUCCESS (IoT Selesai) */}
             {uiState === 'SUCCESS' && activeDevice && (
               <div className="text-center py-4">
+                {/* Dropdown Pilih Mitra (Disabled) */}
+                <div className="mb-6 text-left opacity-75">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Mitra Tempat Setor:</label>
+                  <select
+                    disabled
+                    value={activeDevice.id_mitra}
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 outline-none cursor-not-allowed"
+                  >
+                    <option value={activeDevice.id_mitra}>{activeDevice.mitra?.name || 'Unknown'}</option>
+                  </select>
+                </div>
+
                 <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                   <CheckCircle2 className="w-10 h-10 text-green-500" />
                 </div>

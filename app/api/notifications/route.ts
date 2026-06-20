@@ -82,3 +82,35 @@ export async function PUT(request: Request) {
     return NextResponse.json({ message }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await getUserFromToken();
+    if (!user) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const action = searchParams.get('action');
+
+    if (action === 'all') {
+      await prisma.notification.deleteMany({
+        where: { id_user: user.id }
+      });
+      return NextResponse.json({ message: 'All notifications deleted' });
+    }
+
+    if (id) {
+      await prisma.notification.delete({
+        where: { id_notification: BigInt(id), id_user: user.id }
+      });
+      return NextResponse.json({ message: 'Notification deleted' });
+    }
+
+    return NextResponse.json({ message: 'ID or action required' }, { status: 400 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ message }, { status: 500 });
+  }
+}

@@ -51,10 +51,12 @@ export async function POST(request: Request) {
       },
     }, { status: 200 });
 
+    const isSecure = process.env.NODE_ENV === 'production' && request.headers.get('x-forwarded-proto') === 'https';
+
     // Set cookie untuk auth middleware
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecure,
       sameSite: 'strict',
       maxAge: 60 * 60 * 24,
       path: '/',
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
     
     response.cookies.set('role', user.role, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecure,
       sameSite: 'strict',
       maxAge: 60 * 60 * 24,
       path: '/',

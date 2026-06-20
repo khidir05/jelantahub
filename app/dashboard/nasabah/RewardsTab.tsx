@@ -10,8 +10,21 @@ export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { u
   const [isExchanging, setIsExchanging] = useState(false);
   const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [selectedMitraId, setSelectedMitraId] = useState<string>('all');
 
   const items = data?.items || [];
+
+  const uniqueMitras = Array.from(
+    new Map(
+      items
+        .filter((item: any) => item.mitra && item.id_mitra)
+        .map((item: any) => [item.id_mitra, { id_mitra: item.id_mitra, name: item.mitra.name }])
+    ).values()
+  ) as any[];
+
+  const filteredItems = selectedMitraId === 'all'
+    ? items
+    : items.filter((item: any) => item.id_mitra === selectedMitraId);
 
   const addToCart = (item: any) => {
     const currentQty = cart[item.id_item] || 0;
@@ -76,12 +89,33 @@ export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { u
 
   return (
     <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-200 relative">
-      <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-4">
-        <div className="bg-orange-100 p-2.5 rounded-xl"><Gift className="text-orange-600 w-6 h-6" /></div>
-        <div>
-          <h3 className="text-xl font-bold text-slate-800">Katalog Reward</h3>
-          <p className="text-sm text-slate-500">Tukarkan poin Anda dengan berbagai barang menarik dari Mitra.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-slate-100 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-orange-100 p-2.5 rounded-xl"><Gift className="text-orange-600 w-6 h-6" /></div>
+          <div>
+            <h3 className="text-xl font-bold text-slate-800">Katalog Reward</h3>
+            <p className="text-sm text-slate-500">Tukarkan poin Anda dengan berbagai barang menarik dari Mitra.</p>
+          </div>
         </div>
+
+        {/* Filter Mitra */}
+        {items.length > 0 && (
+          <div className="flex items-center gap-2 w-full md:w-64">
+            <span className="text-sm font-bold text-slate-500 shrink-0">Mitra:</span>
+            <select
+              value={selectedMitraId}
+              onChange={(e) => setSelectedMitraId(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/25 transition-all cursor-pointer hover:bg-slate-100/50"
+            >
+              <option value="all">Semua Mitra</option>
+              {uniqueMitras.map((mitra: any) => (
+                <option key={mitra.id_mitra} value={mitra.id_mitra}>
+                  {mitra.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {items.length === 0 ? (
@@ -91,75 +125,85 @@ export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { u
           <p className="text-xs text-slate-400 mt-1">Saat ini Mitra belum menambahkan katalog barang.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
-          {items.map((item: any) => {
-            const isOutOfStock = item.stock <= 0;
-            const qtyInCart = cart[item.id_item] || 0;
+        <>
+          {filteredItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <ShoppingBag className="w-12 h-12 text-slate-300 mb-3" />
+              <p className="font-semibold text-slate-600">Tidak ada barang dari Mitra ini</p>
+              <p className="text-xs text-slate-400 mt-1">Mitra terpilih belum menambahkan katalog barang atau barang sedang kosong.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+              {filteredItems.map((item: any) => {
+                const isOutOfStock = item.stock <= 0;
+                const qtyInCart = cart[item.id_item] || 0;
 
-            return (
-              <div key={item.id_item} className={`flex flex-col border rounded-2xl overflow-hidden hover:shadow-lg transition-all bg-white group p-5 ${qtyInCart > 0 ? 'border-orange-500 shadow-md shadow-orange-500/10' : 'border-slate-200'}`}>
-                
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-bold text-slate-800 text-lg">{item.item_name}</h4>
-                  {qtyInCart > 0 && (
-                    <span className="bg-orange-500 text-white px-2 py-0.5 rounded-full text-xs font-extrabold shadow-sm animate-in zoom-in">
-                      {qtyInCart}x
-                    </span>
-                  )}
-                  {isOutOfStock && qtyInCart === 0 && (
-                    <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-xs font-bold shadow-sm">
-                      Stok Habis
-                    </span>
-                  )}
-                </div>
-
-                <p className="text-xs text-slate-500 line-clamp-3 mb-4 flex-1">{item.description}</p>
-                
-                <div className="flex items-center justify-between mt-auto mb-4">
-                  <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Mitra: {item.mitra?.name || 'Anonim'}
-                  </span>
-                  <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
-                    Stok: {item.stock}
-                  </span>
-                </div>
-
-                <div className="mt-2">
-                  {qtyInCart > 0 ? (
-                    <div className="flex items-center justify-between bg-orange-50 p-1 rounded-xl border border-orange-200">
-                      <button 
-                        onClick={() => removeFromCart(item)}
-                        className="w-10 h-10 flex items-center justify-center bg-white text-orange-600 rounded-lg shadow-sm hover:bg-orange-100 font-bold"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="font-extrabold text-orange-700">
-                        {qtyInCart} Item
-                      </span>
-                      <button 
-                        onClick={() => addToCart(item)}
-                        disabled={qtyInCart >= item.stock}
-                        className={`w-10 h-10 flex items-center justify-center bg-orange-500 text-white rounded-lg shadow-sm font-bold ${qtyInCart >= item.stock ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-600'}`}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                return (
+                  <div key={item.id_item} className={`flex flex-col border rounded-2xl overflow-hidden hover:shadow-lg transition-all bg-white group p-5 ${qtyInCart > 0 ? 'border-orange-500 shadow-md shadow-orange-500/10' : 'border-slate-200'}`}>
+                    
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-bold text-slate-800 text-lg">{item.item_name}</h4>
+                      {qtyInCart > 0 && (
+                        <span className="bg-orange-500 text-white px-2 py-0.5 rounded-full text-xs font-extrabold shadow-sm animate-in zoom-in">
+                          {qtyInCart}x
+                        </span>
+                      )}
+                      {isOutOfStock && qtyInCart === 0 && (
+                        <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-xs font-bold shadow-sm">
+                          Stok Habis
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <button 
-                      onClick={() => addToCart(item)}
-                      disabled={isOutOfStock}
-                      className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                        isOutOfStock ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-900 shadow-md active:scale-95'
-                      }`}
-                    >
-                      Tambah ({item.point_cost} PTS)
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+
+                    <p className="text-xs text-slate-500 line-clamp-3 mb-4 flex-1">{item.description}</p>
+                    
+                    <div className="flex items-center justify-between mt-auto mb-4">
+                      <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Mitra: {item.mitra?.name || 'Anonim'}
+                      </span>
+                      <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
+                        Stok: {item.stock}
+                      </span>
+                    </div>
+
+                    <div className="mt-2">
+                      {qtyInCart > 0 ? (
+                        <div className="flex items-center justify-between bg-orange-50 p-1 rounded-xl border border-orange-200">
+                          <button 
+                            onClick={() => removeFromCart(item)}
+                            className="w-10 h-10 flex items-center justify-center bg-white text-orange-600 rounded-lg shadow-sm hover:bg-orange-100 font-bold"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="font-extrabold text-orange-700">
+                            {qtyInCart} Item
+                          </span>
+                          <button 
+                            onClick={() => addToCart(item)}
+                            disabled={qtyInCart >= item.stock}
+                            className={`w-10 h-10 flex items-center justify-center bg-orange-500 text-white rounded-lg shadow-sm font-bold ${qtyInCart >= item.stock ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-600'}`}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => addToCart(item)}
+                          disabled={isOutOfStock}
+                          className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                            isOutOfStock ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-900 shadow-md active:scale-95'
+                          }`}
+                        >
+                          Tambah ({item.point_cost} PTS)
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* FLOATING CART BAR */}

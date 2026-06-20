@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut, Bell, Check, Info, AlertTriangle, CheckCircle } from "lucide-react";
+import { LogOut, Bell, Check, Info, AlertTriangle, CheckCircle, Trash2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -74,6 +74,30 @@ export default function DashboardLayout({
     }
   };
 
+  const deleteNotification = async (id: string) => {
+    try {
+      await fetch(`/api/notifications?id=${id}`, {
+        method: 'DELETE'
+      });
+      fetchNotifications();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus semua notifikasi?")) return;
+    try {
+      await fetch('/api/notifications?action=all', {
+        method: 'DELETE'
+      });
+      fetchNotifications();
+      setIsDropdownOpen(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -120,14 +144,21 @@ export default function DashboardLayout({
 
               {/* Notification Dropdown */}
               {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                    <h3 className="font-bold text-slate-800">Notifikasi</h3>
-                    {unreadCount > 0 && (
-                      <button onClick={markAllAsRead} className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Tandai semua dibaca
-                      </button>
-                    )}
+                    <h3 className="font-bold text-slate-800 text-sm">Notifikasi</h3>
+                    <div className="flex gap-2">
+                      {unreadCount > 0 && (
+                        <button onClick={markAllAsRead} className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 transition-colors">
+                          <Check className="w-3 h-3" /> Dibaca
+                        </button>
+                      )}
+                      {notifications.length > 0 && (
+                        <button onClick={deleteAllNotifications} className="text-[11px] font-bold text-red-600 hover:text-red-700 flex items-center gap-0.5 transition-colors">
+                          <Trash2 className="w-3 h-3" /> Hapus semua
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="max-h-96 overflow-y-auto">
                     {notifications.length > 0 ? (
@@ -138,21 +169,35 @@ export default function DashboardLayout({
                             if (!notif.is_read) markAsRead(notif.id_notification);
                             if (notif.link) router.push(notif.link);
                           }}
-                          className={`p-4 border-b border-slate-50 cursor-pointer transition-colors hover:bg-slate-50 flex gap-3 ${!notif.is_read ? 'bg-blue-50/30' : ''}`}
+                          className={`p-4 border-b border-slate-50 cursor-pointer transition-colors hover:bg-slate-50 flex gap-3 relative group ${!notif.is_read ? 'bg-blue-50/30' : ''}`}
                         >
                           <div className="mt-1 flex-shrink-0">
                             {getIcon(notif.type)}
                           </div>
-                          <div>
-                            <p className={`text-sm ${!notif.is_read ? 'font-bold text-slate-800' : 'font-medium text-slate-600'}`}>{notif.title}</p>
-                            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{notif.message}</p>
+                          <div className="flex-1 min-w-0 pr-6">
+                            <p className={`text-sm leading-tight ${!notif.is_read ? 'font-bold text-slate-800' : 'font-medium text-slate-600'}`}>{notif.title}</p>
+                            <p className="text-xs text-slate-500 mt-1 leading-relaxed break-words">{notif.message}</p>
                             <span className="text-[10px] font-bold text-slate-400 mt-2 block">
                               {new Date(notif.created_at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit' })}
                             </span>
                           </div>
-                          {!notif.is_read && (
-                            <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                          )}
+                          
+                          {/* Action overlay container */}
+                          <div className="absolute right-3 top-4 flex flex-col items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteNotification(notif.id_notification);
+                              }}
+                              className="text-slate-300 hover:text-red-500 hover:bg-slate-100 p-1.5 rounded-full transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                              title="Hapus Notifikasi"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            {!notif.is_read && (
+                              <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 flex-shrink-0"></div>
+                            )}
+                          </div>
                         </div>
                       ))
                     ) : (

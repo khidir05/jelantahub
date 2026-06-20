@@ -30,16 +30,40 @@ export async function GET(request: Request) {
       });
 
       const activeDevice = await prisma.device.findFirst({
-        where: { id_nasabah: idNasabah }
+        where: { id_nasabah: idNasabah },
+        include: {
+          mitra: {
+            select: { id_user: true, name: true }
+          }
+        }
       });
       
       const availableDevices = await prisma.device.findMany({
-        where: { status: 'online', id_nasabah: null }
+        where: { status: 'online', id_nasabah: null },
+        include: {
+          mitra: {
+            select: { id_user: true, name: true }
+          }
+        }
       });
+
+      const envDeviceCode = process.env.MQTT_DEVICE_CODE;
+      let envMitraId = null;
+      if (envDeviceCode) {
+        const envDevice = await prisma.device.findUnique({
+          where: { device_code: envDeviceCode },
+          select: { id_mitra: true }
+        });
+        if (envDevice) {
+          envMitraId = envDevice.id_mitra;
+        }
+      }
       
       return NextResponse.json({
         activeDevice,
-        availableDevices
+        availableDevices,
+        envMitraId,
+        envDeviceCode
       });
     }
 
