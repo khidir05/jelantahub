@@ -47,7 +47,9 @@ export default function LoginPage() {
         window.location.replace('/login');
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Login Gagal. Periksa kembali kredensial Anda.');
+      console.error("Login error detail:", err);
+      const errMsg = err.response?.data?.message || err.message || 'Kredensial salah atau terjadi kesalahan.';
+      alert(`Login Gagal. Detail: ${errMsg}`);
     } finally {
       setIsLoading(false);
     }
