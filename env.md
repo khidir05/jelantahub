@@ -1,0 +1,19 @@
+DATABASE_URL="postgresql://jelantahhub:MqttNodered765@103.189.235.216:5432/jelantahhub" 
+
+TELEGRAM_BOT_TOKEN="8629047031:AAE0hTErwfV5tSeN2kuQzgiCAx7x6w83hKI"
+TELEGRAM_CHAT_ID="-1001234567890"
+
+NEXT_PUBLIC_SUPABASE_URL=your_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key
+
+NEXT_PUBLIC_MQTT_URL=ws://broker.emqx.io:8083/mqtt
+
+# Secure MQTT variables
+MQTT_HOST="mqtt://103.189.235.216"
+MQTT_USERNAME="JelantahHub"
+MQTT_PASSWORD="MqttNodered765"
+MQTT_DEVICE_CODE="DEV-001-SBY"
+MQTT_TOPIC_VALUE_TEMPLATE="jelantah/{$device_code}/value"
+MQTT_TOPIC_QUALITY_TEMPLATE="jelantah/{$device_code}/quality"
+
+FONNTE_TOKEN="3mhjbRz1seqkLcCaxyjR"
