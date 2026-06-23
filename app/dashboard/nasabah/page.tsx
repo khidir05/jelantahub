@@ -6,6 +6,40 @@ import { Wallet, History, Server, Loader2, CheckCircle2, XCircle, MapPin, Zap, A
 import api from '../../lib/axios';
 import RewardsTab from './RewardsTab';
 
+interface Mitra {
+  id_user: string;
+  name: string;
+}
+
+interface Device {
+  id_device: string;
+  device_code: string;
+  location_name: string;
+  address?: string | null;
+  status: string;
+  process: string;
+  id_mitra: string;
+  id_nasabah?: string | null;
+  mitra?: Mitra;
+}
+
+interface RiwayatSetoran {
+  id_deposit: string;
+  volume: number;
+  quality_score: number;
+  point_earned: number;
+  created_at: string;
+}
+
+interface MqttPayload {
+  volume_disetor: number;
+  skor_kualitas: number;
+  volume_jerigen_a: number;
+  volume_jerigen_b: number;
+  sensor_status: boolean;
+  timestamp: string;
+}
+
 const fetcher = (url: string, userId: string) => api.get(url, { headers: { 'x-user-id': userId } }).then(res => res.data);
 
 // Helper untuk format angka poin
@@ -15,18 +49,19 @@ const formatPoin = (angka: number) => {
 
 export default function NasabahDashboard() {
   const [userId, setUserId] = useState('');
-  const [tabungan, setTabungan] = useState({ saldo_poin: 0, riwayat: [] as any[] });
+  const [tabungan, setTabungan] = useState<{ saldo_poin: number; riwayat: RiwayatSetoran[] }>({ saldo_poin: 0, riwayat: [] });
   
-  const [availableDevices, setAvailableDevices] = useState<any[]>([]);
-  const [activeDevice, setActiveDevice] = useState<any | null>(null);
+  const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
+  const [activeDevice, setActiveDevice] = useState<Device | null>(null);
+  const [lastActiveDevice, setLastActiveDevice] = useState<Device | null>(null);
   const [uiState, setUiState] = useState('IDLE');
   const [isRefreshing, setIsRefreshing] = useState(false); // Untuk animasi tombol refresh
   const [activeMainTab, setActiveMainTab] = useState('beranda'); // 'beranda' | 'rewards'
 
-  const [mqttPayload, setMqttPayload] = useState<any>(null);
+  const [mqttPayload, setMqttPayload] = useState<MqttPayload | null>(null);
   const [mqttConnected, setMqttConnected] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
-  const [selectedMitraId, setSelectedMitraId] = useState<string>('');
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user_id');
@@ -53,12 +88,9 @@ export default function NasabahDashboard() {
 
   useEffect(() => {
     if (devicesData) {
-      if (devicesData.envMitraId && !selectedMitraId) {
-        setSelectedMitraId(devicesData.envMitraId);
-      }
-
       if (devicesData.activeDevice) {
         setActiveDevice(devicesData.activeDevice);
+        setLastActiveDevice(devicesData.activeDevice);
         
         // State Machine Update
         if (devicesData.activeDevice.process === 'standby') {
@@ -113,10 +145,16 @@ export default function NasabahDashboard() {
   const handleSelesaiTuang = async () => {
     if (!activeDevice) return;
     
+    const volumeDisetor = Number(mqttPayload?.volume_disetor ?? 0);
+    if (volumeDisetor === 0) {
+      const yakin = window.confirm("Poin Anda masih 0 karena belum ada minyak yang dituangkan. Apakah Anda yakin ingin menyelesaikan transaksi?");
+      if (!yakin) return;
+    }
+
     // Jika tidak ada payload sama sekali (misal sensor belum publish apa-apa)
     const finalPayload = {
       id_device: activeDevice.id_device,
-      volume_disetor: Number(mqttPayload?.volume_disetor ?? 0),
+      volume_disetor: volumeDisetor,
       skor_kualitas: Number(mqttPayload?.skor_kualitas ?? 0),
       volume_jerigen_a: Number(mqttPayload?.volume_jerigen_a ?? 0),
       volume_jerigen_b: Number(mqttPayload?.volume_jerigen_b ?? 0),
@@ -152,12 +190,14 @@ export default function NasabahDashboard() {
         setUiState('IDLE');
         setMqttPayload(null);
         setMqttConnected(false);
+        setLastActiveDevice(null);
         mutateDevices();
       } else if (action === 'SELECT' || action === 'CANCEL') {
         setUiState('STANDBY');
         if (action === 'CANCEL') {
           setMqttPayload(null);
           setMqttConnected(false);
+          setLastActiveDevice(null);
         }
         mutateDevices();
       } else if (action === 'SETOR') {
@@ -181,17 +221,8 @@ export default function NasabahDashboard() {
     }
   };
 
-  // Extract unique available mitras from availableDevices
-  const availableMitras = Array.from(
-    new Map(
-      availableDevices
-        .filter((d: any) => d.mitra)
-        .map((d: any) => [d.id_mitra, d.mitra])
-    ).values()
-  ) as any[];
-
-  // Find the selected device based on selectedMitraId
-  const selectedDevice = availableDevices.find((d: any) => d.id_mitra === selectedMitraId);
+  // Find the selected device based on selectedDeviceId
+  const selectedDevice = availableDevices.find((d: Device) => d.id_device === selectedDeviceId);
 
   return (
     <div className="space-y-8 pb-10">
@@ -273,18 +304,18 @@ export default function NasabahDashboard() {
                   </div>
                 ) : (
                   <div className="text-center py-4">
-                    {/* Dropdown Pilih Mitra */}
+                    {/* Dropdown Pilih Tempat Setor */}
                     <div className="mb-6 text-left animate-in fade-in slide-in-from-top-2 duration-300">
-                      <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Mitra Tempat Setor:</label>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Tempat Setor:</label>
                       <select
-                        value={selectedMitraId}
-                        onChange={(e) => setSelectedMitraId(e.target.value)}
+                        value={selectedDeviceId}
+                        onChange={(e) => setSelectedDeviceId(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/25 transition-all cursor-pointer hover:bg-slate-100/50"
                       >
-                        <option value="">-- Pilih Mitra --</option>
-                        {availableMitras.map((mitra: any) => (
-                          <option key={mitra.id_user} value={mitra.id_user}>
-                            {mitra.name}
+                        <option value="">-- Pilih Tempat Setor --</option>
+                        {availableDevices.map((device: Device) => (
+                          <option key={device.id_device} value={device.id_device}>
+                            {device.location_name} ({device.mitra?.name || 'Mitra'})
                           </option>
                         ))}
                       </select>
@@ -309,7 +340,7 @@ export default function NasabahDashboard() {
                       </div>
                     ) : (
                       <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 mb-8 text-center text-slate-500 text-sm">
-                        {selectedMitraId ? "Mesin Mitra terpilih sedang tidak tersedia/offline." : "Silakan pilih Mitra terlebih dahulu untuk memulai setor minyak."}
+                        {selectedDeviceId ? "Mesin Mitra terpilih sedang tidak tersedia/offline." : "Silakan pilih Tempat Setor terlebih dahulu untuk memulai setor minyak."}
                       </div>
                     )}
                   </div>
@@ -320,15 +351,15 @@ export default function NasabahDashboard() {
             {/* STATE 2: STANDBY (Siap Setor) */}
             {uiState === 'STANDBY' && activeDevice && (
               <div className="text-center py-4">
-                {/* Dropdown Pilih Mitra (Disabled) */}
+                {/* Dropdown Pilih Tempat Setor (Disabled) */}
                 <div className="mb-6 text-left opacity-75">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Mitra Tempat Setor:</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Tempat Setor:</label>
                   <select
                     disabled
-                    value={activeDevice.id_mitra}
+                    value={activeDevice.id_device}
                     className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 outline-none cursor-not-allowed"
                   >
-                    <option value={activeDevice.id_mitra}>{activeDevice.mitra?.name || 'Unknown'}</option>
+                    <option value={activeDevice.id_device}>{activeDevice.location_name} ({activeDevice.mitra?.name || 'Mitra'})</option>
                   </select>
                 </div>
 
@@ -358,15 +389,15 @@ export default function NasabahDashboard() {
             {/* STATE 3: LOADING (Sedang Setor) */}
             {uiState === 'LOADING' && activeDevice && (
               <div className="text-center py-6">
-                {/* Dropdown Pilih Mitra (Disabled) */}
+                {/* Dropdown Pilih Tempat Setor (Disabled) */}
                 <div className="mb-6 text-left opacity-75">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Mitra Tempat Setor:</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Tempat Setor:</label>
                   <select
                     disabled
-                    value={activeDevice.id_mitra}
+                    value={activeDevice.id_device}
                     className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 outline-none cursor-not-allowed"
                   >
-                    <option value={activeDevice.id_mitra}>{activeDevice.mitra?.name || 'Unknown'}</option>
+                    <option value={activeDevice.id_device}>{activeDevice.location_name} ({activeDevice.mitra?.name || 'Mitra'})</option>
                   </select>
                 </div>
 
@@ -427,17 +458,17 @@ export default function NasabahDashboard() {
             )}
 
             {/* STATE 4: SUCCESS (IoT Selesai) */}
-            {uiState === 'SUCCESS' && activeDevice && (
+            {uiState === 'SUCCESS' && lastActiveDevice && (
               <div className="text-center py-4">
-                {/* Dropdown Pilih Mitra (Disabled) */}
+                {/* Dropdown Pilih Tempat Setor (Disabled) */}
                 <div className="mb-6 text-left opacity-75">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Mitra Tempat Setor:</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Pilih Tempat Setor:</label>
                   <select
                     disabled
-                    value={activeDevice.id_mitra}
+                    value={lastActiveDevice.id_device}
                     className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 outline-none cursor-not-allowed"
                   >
-                    <option value={activeDevice.id_mitra}>{activeDevice.mitra?.name || 'Unknown'}</option>
+                    <option value={lastActiveDevice.id_device}>{lastActiveDevice.location_name} ({lastActiveDevice.mitra?.name || 'Mitra'})</option>
                   </select>
                 </div>
 
@@ -448,7 +479,7 @@ export default function NasabahDashboard() {
                 <p className="text-slate-500 text-sm mb-8">Data minyak Anda telah tersimpan dan poin berhasil ditambahkan ke saldo.</p>
                 
                 <button 
-                  onClick={() => handleDeviceAction('FINISH', activeDevice.id_device)}
+                  onClick={() => handleDeviceAction('FINISH', lastActiveDevice.id_device)}
                   className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold text-lg hover:bg-slate-900 shadow-xl shadow-slate-800/20 transition-all active:scale-[0.98]"
                 >
                   Selesai Transaksi
@@ -480,7 +511,7 @@ export default function NasabahDashboard() {
               </div>
             ) : (
               <div className="space-y-4">
-                {tabungan.riwayat.map((trx, idx) => (
+                {tabungan.riwayat.map((trx: RiwayatSetoran, idx: number) => (
                   <div key={idx} className="group flex flex-col sm:flex-row justify-between sm:items-center p-5 bg-white hover:bg-slate-50 rounded-2xl border border-slate-100 hover:border-orange-200 transition-all">
                     <div className="flex items-center gap-4 mb-3 sm:mb-0">
                       <div className="bg-green-100/50 p-3 rounded-full group-hover:scale-110 transition-transform">

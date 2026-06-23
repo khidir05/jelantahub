@@ -65,8 +65,8 @@ model Point {
 
 model Device {
   id_device     String        @id @default(uuid())
-  device_code   String        @unique @db.VarChar(10)
-  location_name String        @db.VarChar(15)
+  device_code   String        @unique @db.VarChar(50)
+  location_name String        @db.VarChar(100)
   address       String?       @db.Text
   status        DeviceStatus  
   process       DeviceProcess @default(disconnect)
@@ -97,7 +97,7 @@ model SensorRead {
 
 model Jerigen {
   id_jerigen        String        @id @default(uuid())
-  jerigen_code      String        @unique @db.VarChar(15)
+  jerigen_code      String        @unique @db.VarChar(50)
   id_device         String
   max_capacity      Int
   current_volume    Int           @default(0)
@@ -191,7 +191,7 @@ enum ExchangeStatus {
 model Item {
   id_item     String   @id @default(uuid()) // UUID/CUID
   id_mitra    String
-  item_name   String   @db.VarChar(20)
+  item_name   String   @db.VarChar(100)
   description String   @db.Text
   point_cost  Int
   stock       Int

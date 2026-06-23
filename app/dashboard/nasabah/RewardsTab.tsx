@@ -3,6 +3,25 @@ import useSWR from 'swr';
 import { Gift, CheckCircle2, ShoppingBag, Plus, Minus, AlertTriangle, X, HelpCircle } from 'lucide-react';
 import api from '../../lib/axios';
 
+interface RewardItem {
+  id_item: string;
+  item_name: string;
+  description: string;
+  point_cost: number;
+  stock: number;
+  is_active: boolean;
+  id_mitra: string;
+  mitra: {
+    name: string;
+    username: string;
+  };
+}
+
+interface UniqueMitraOption {
+  id_mitra: string;
+  name: string;
+}
+
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
 export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { userId: string, saldoPoin: number, onExchangeSuccess: () => void }) {
@@ -12,21 +31,21 @@ export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { u
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [selectedMitraId, setSelectedMitraId] = useState<string>('all');
 
-  const items = data?.items || [];
+  const items: RewardItem[] = data?.items || [];
 
   const uniqueMitras = Array.from(
     new Map(
       items
-        .filter((item: any) => item.mitra && item.id_mitra)
-        .map((item: any) => [item.id_mitra, { id_mitra: item.id_mitra, name: item.mitra.name }])
+        .filter((item: RewardItem) => item.mitra && item.id_mitra)
+        .map((item: RewardItem) => [item.id_mitra, { id_mitra: item.id_mitra, name: item.mitra.name }])
     ).values()
-  ) as any[];
+  ) as UniqueMitraOption[];
 
   const filteredItems = selectedMitraId === 'all'
     ? items
-    : items.filter((item: any) => item.id_mitra === selectedMitraId);
+    : items.filter((item: RewardItem) => item.id_mitra === selectedMitraId);
 
-  const addToCart = (item: any) => {
+  const addToCart = (item: RewardItem) => {
     const currentQty = cart[item.id_item] || 0;
     if (currentQty >= item.stock) {
       alert(`Stok maksimal untuk ${item.item_name} adalah ${item.stock}.`);
@@ -35,7 +54,7 @@ export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { u
     setCart({ ...cart, [item.id_item]: currentQty + 1 });
   };
 
-  const removeFromCart = (item: any) => {
+  const removeFromCart = (item: RewardItem) => {
     const currentQty = cart[item.id_item] || 0;
     if (currentQty <= 1) {
       const newCart = { ...cart };
@@ -49,7 +68,7 @@ export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { u
   const clearCart = () => setCart({});
 
   const totalPointsNeeded = Object.entries(cart).reduce((total, [id, qty]) => {
-    const item = items.find((i: any) => i.id_item === id);
+    const item = items.find((i: RewardItem) => i.id_item === id);
     if (!item) return total;
     return total + (item.point_cost * qty);
   }, 0);
@@ -77,8 +96,9 @@ export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { u
       setIsConfirmModalOpen(false);
       mutate();
       onExchangeSuccess(); // Refresh saldo poin
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Gagal menukar poin.');
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? (err as any).response?.data?.message || err.message : 'Gagal menukar poin.';
+      alert(errMsg);
     } finally {
       setIsExchanging(false);
     }
@@ -108,7 +128,7 @@ export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { u
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/25 transition-all cursor-pointer hover:bg-slate-100/50"
             >
               <option value="all">Semua Mitra</option>
-              {uniqueMitras.map((mitra: any) => (
+              {uniqueMitras.map((mitra: UniqueMitraOption) => (
                 <option key={mitra.id_mitra} value={mitra.id_mitra}>
                   {mitra.name}
                 </option>
@@ -134,7 +154,7 @@ export default function RewardsTab({ userId, saldoPoin, onExchangeSuccess }: { u
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
-              {filteredItems.map((item: any) => {
+              {filteredItems.map((item: RewardItem) => {
                 const isOutOfStock = item.stock <= 0;
                 const qtyInCart = cart[item.id_item] || 0;
 

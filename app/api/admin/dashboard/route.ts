@@ -99,10 +99,41 @@ export async function POST(request: Request) {
       
       const result = await prisma.$transaction(async (tx) => {
         const updatedUser = await tx.user.update({ where: { id_user }, data: { is_active: true } });
-        await tx.device.updateMany({
-          where: { id_mitra: id_user },
-          data: { device_code: device_code }
-        });
+        
+        // Find devices registered to the Mitra
+        const devices = await tx.device.findMany({ where: { id_mitra: id_user } });
+        for (const device of devices) {
+          // Update device_code
+          await tx.device.update({
+            where: { id_device: device.id_device },
+            data: { device_code: device_code }
+          });
+
+          // Create/upsert default 20L jerigens
+          await tx.jerigen.upsert({
+            where: { jerigen_code: `JG-GOOD-${device_code}` },
+            update: { max_capacity: 20 },
+            create: {
+              jerigen_code: `JG-GOOD-${device_code}`,
+              id_device: device.id_device,
+              max_capacity: 20,
+              current_volume: 0,
+              status: 'empty'
+            }
+          });
+          await tx.jerigen.upsert({
+            where: { jerigen_code: `JG-BAD-${device_code}` },
+            update: { max_capacity: 20 },
+            create: {
+              jerigen_code: `JG-BAD-${device_code}`,
+              id_device: device.id_device,
+              max_capacity: 20,
+              current_volume: 0,
+              status: 'empty'
+            }
+          });
+        }
+
         await tx.notification.create({
           data: {
             id_user: id_user,
@@ -120,7 +151,7 @@ export async function POST(request: Request) {
         try {
           await sendWaNotification(
             result.no_telp,
-            `✅ *Kemitraan Disetujui - JelantaHUB*\n\nHalo Mitra *${result.name}*,\nSelamat! Pengajuan kemitraan Anda telah disetujui oleh Admin.\n\nAkun Anda telah diaktifkan dengan Kode Device *${device_code}*.\n\nSekarang Anda dapat login ke dashboard JelantaHUB dan mulai memantau mesin Anda.`
+            `✅ *Kemitraan Disetujui - JelantaHUB*\n\nHalo Mitra *${result.name}*,\nSelamat! Pengajuan kemitraan Anda telah disetujui oleh Admin.\n\nAkun Anda telah diaktifkan dengan Kode Device *${device_code}*.\n\nSekarang Anda dapat login ke dashboard jelantah.myamlabar.id dan mulai memantau mesin Anda.`
           );
         } catch (err) {
           console.error('Failed to send Mitra approval WA notification:', err);
